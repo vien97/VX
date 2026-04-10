@@ -191,7 +191,7 @@ enum DefaultRouteMode {
           AtomicDomainSet(
             name: notCn,
             inverse: true,
-            useBloomFilter: Platform.isIOS,
+            useBloomFilter: true,
             geositeConfig: GeositeConfig(codes: ['cn']),
           ),
           AtomicDomainSet(
@@ -214,7 +214,7 @@ enum DefaultRouteMode {
             ),
           AtomicDomainSet(
             name: cn,
-            useBloomFilter: Platform.isIOS,
+            useBloomFilter: true,
             geositeConfig: GeositeConfig(codes: ['cn', 'apple-cn', 'tld-cn']),
           ),
           AtomicDomainSet(

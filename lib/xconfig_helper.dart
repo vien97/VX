@@ -674,7 +674,7 @@ class XConfigHelper {
           name: setName,
           geosite: geositeConfig,
           inverse: atomicSet.inverse,
-          useBloomFilter: atomicSet.useBloomFilter,
+          useBloomFilter: atomicSet.useBloomFilter && Platform.isIOS,
         );
         for (final url in atomicSet.clashRuleUrls ?? []) {
           clashUrlsSet.add(url);

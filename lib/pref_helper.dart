@@ -733,7 +733,7 @@ extension PrefHelperExtension on SharedPreferences {
   }
 
   int get fallbackTimeout {
-    return getInt('fallbackTimeout') ?? 6;
+    return getInt('fallbackTimeout') ?? 8;
   }
 
   void setFallbackTimeout(int timeout) {
