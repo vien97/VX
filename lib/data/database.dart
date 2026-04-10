@@ -201,12 +201,14 @@ class AppDatabase extends _$AppDatabase {
       // runs after migration
       beforeOpen: (details) async {
         try {
-          await customStatement('PRAGMA journal_mode = WAL');
+          if (!Platform.isAndroid) {
+            await customStatement('PRAGMA journal_mode = WAL');
+          }
         } catch (e) {
           reportError("beforeOpen journal_mode WAL", e);
         }
         try {
-          await customStatement('PRAGMA busy_timeout = 1000');
+          await customStatement('PRAGMA busy_timeout = 5000');
         } catch (e) {
           reportError("beforeOpen busy_timeout", e);
         }

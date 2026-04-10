@@ -28,9 +28,56 @@ Future<AppDatabase?> _initDatabase(
   } catch (e) {
     logger.e('Error initializing database', error: e);
     reportError("init database", e);
+
+    if (e.toString().contains('malformed') ||
+        e.toString().contains('corrupt') ||
+        e.toString().contains('SqliteException(11)')) {
+      try {
+        final path = await getDbPath(pref);
+        // Try to get a detailed corruption report before deleting.
+        String report = '';
+        try {
+          final corruptDb = AppDatabase(path: path, interceptor: interceptor);
+          final rows =
+              await corruptDb.customSelect('PRAGMA integrity_check').get();
+          report = rows
+              .map((r) => r.data.values.first?.toString() ?? '')
+              .join('\n');
+          logger.e('Integrity check on corrupt database:\n$report');
+          reportError("integrity_check before recovery", report);
+          await corruptDb.close();
+        } catch (_) {}
+
+        logger.w('Attempting database recovery by deleting corrupt file');
+        await _deleteCorruptDatabase(path);
+        final db = AppDatabase(path: path, interceptor: interceptor);
+        await db.customSelect('SELECT 1').get();
+        fatalErrorMessage =
+            "Database was corrupted and has been recreated. Your data has been reset.\n$report";
+        return db;
+      } catch (e2) {
+        logger.e('Error recovering database', error: e2);
+        reportError("recover database", e2);
+      }
+    }
+
     fatalErrorMessage = "Failed to initialize database: $e";
   }
 
-  logger.d('Database initialized');
   return null;
+}
+
+Future<void> _deleteCorruptDatabase(String path) async {
+  final files = [
+    File(path),
+    File('$path-wal'),
+    File('$path-shm'),
+    File('$path-journal'),
+  ];
+  for (final f in files) {
+    if (await f.exists()) {
+      logger.w('Deleting corrupt database file: ${f.path}');
+      await f.delete();
+    }
+  }
 }
