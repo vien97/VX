@@ -22,8 +22,24 @@ Future<AppDatabase?> _initDatabase(
   try {
     final path = await getDbPath(pref);
     final db = AppDatabase(path: path, interceptor: interceptor);
-    // Force the connection to be opened before returning.
-    await db.customSelect('SELECT 1').get();
+
+    if (Platform.isAndroid) {
+      // PRAGMA quick_check returns one row "ok" if healthy,
+      // or multiple rows describing each corruption found.
+      final rows = await db.customSelect('PRAGMA quick_check').get();
+      final messages = rows
+          .map((r) => r.data.values.first?.toString() ?? '')
+          .toList();
+      logger.d('quick_check messages: $messages');
+      if (messages.length != 1 || messages.first != 'ok') {
+        final report = messages.join('\n');
+        logger.e('Database corruption detected:\n$report');
+        reportError("database corruption detected", report);
+        fatalErrorMessage =
+            "Database was corrupted. Details of corruption: $report";
+      }
+    }
+
     return db;
   } catch (e) {
     logger.e('Error initializing database', error: e);
@@ -38,8 +54,9 @@ Future<AppDatabase?> _initDatabase(
         String report = '';
         try {
           final corruptDb = AppDatabase(path: path, interceptor: interceptor);
-          final rows =
-              await corruptDb.customSelect('PRAGMA integrity_check').get();
+          final rows = await corruptDb
+              .customSelect('PRAGMA integrity_check')
+              .get();
           report = rows
               .map((r) => r.data.values.first?.toString() ?? '')
               .join('\n');
@@ -51,7 +68,6 @@ Future<AppDatabase?> _initDatabase(
         logger.w('Attempting database recovery by deleting corrupt file');
         await _deleteCorruptDatabase(path);
         final db = AppDatabase(path: path, interceptor: interceptor);
-        await db.customSelect('SELECT 1').get();
         fatalErrorMessage =
             "Database was corrupted and has been recreated. Your data has been reset.\n$report";
         return db;
