@@ -443,6 +443,8 @@ void main() async {
                         .read<AutoUpdateService>()
                         .setSkipCurrentVersion,
                     installLocalInstaller: () {
+                      // stop vpn first
+                      context.read<XController>().stop();
                       rootNavigationKey.currentContext!
                           .read<AutoUpdateService>()
                           .installLocalInstaller();
