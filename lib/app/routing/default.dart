@@ -528,10 +528,12 @@ enum DefaultRouteMode {
       fallbacks: [
         RuleConfig_Fallback(
           selectorTag: defaultProxySelectorTag,
+          action: RuleConfig_Fallback_Action(ipToDomain: true),
           domainTags: [notCn],
         ),
         RuleConfig_Fallback(
           selectorTag: defaultProxySelectorTag,
+          action: RuleConfig_Fallback_Action(ipToDomain: true),
           dstIpTags: [notCn],
         ),
       ],
