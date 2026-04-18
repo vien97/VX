@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:developer';
+
 import 'package:drift/drift.dart';
 import 'package:tm/protos/vx/common/geo/geo.pb.dart';
 import 'package:tm/protos/vx/dns/dns.pb.dart';
@@ -104,7 +106,12 @@ abstract class SetRepo {
   Stream<List<GreatIpSet>> getGreatIpSetsStream();
   Stream<List<AtomicIpSet>> getAtomicIpSetsStream();
 
-  Future<void> addApp(String appSetName, AppId app, {Uint8List? icon});
+  Future<void> addApp(
+    String appSetName,
+    AppId app, {
+    Uint8List? icon,
+    String? name,
+  });
   Future<void> addApps(List<App> apps);
   Stream<List<App>> getAppsStream(String appSetName);
   Future<List<App>> getApps(String appSetName);
@@ -794,7 +801,12 @@ class DbHelper implements SelectorRepo, RouteRepo, SetRepo, DnsRepo {
   }
 
   @override
-  Future<void> addApp(String appSetName, AppId app, {Uint8List? icon}) async {
+  Future<void> addApp(
+    String appSetName,
+    AppId app, {
+    Uint8List? icon,
+    String? name,
+  }) async {
     // only keyword type is synced
     if (app.type == AppId_Type.Keyword) {
       await _databaseProvider.database.insertReturning(
@@ -803,6 +815,7 @@ class DbHelper implements SelectorRepo, RouteRepo, SetRepo, DnsRepo {
           appId: Value(app),
           appSetName: Value(appSetName),
           icon: icon != null ? Value(icon) : const Value.absent(),
+          name: name != null ? Value(name) : const Value.absent(),
         ),
       );
     } else {
@@ -810,6 +823,7 @@ class DbHelper implements SelectorRepo, RouteRepo, SetRepo, DnsRepo {
         appId: Value(app),
         appSetName: Value(appSetName),
         icon: icon != null ? Value(icon) : const Value.absent(),
+        name: name != null ? Value(name) : const Value.absent(),
       );
       await _databaseProvider.database
           .into(_databaseProvider.database.apps)
@@ -834,6 +848,7 @@ class DbHelper implements SelectorRepo, RouteRepo, SetRepo, DnsRepo {
               appSetName: Value(e.appSetName),
               appId: Value(e.appId),
               icon: e.icon != null ? Value(e.icon!) : const Value.absent(),
+              name: e.name != null ? Value(e.name!) : const Value.absent(),
             ),
           )
           .toList(),
@@ -845,7 +860,9 @@ class DbHelper implements SelectorRepo, RouteRepo, SetRepo, DnsRepo {
     return (_databaseProvider.database.select(_databaseProvider.database.apps)
           ..where((t) => t.appSetName.equals(appSetName)))
         .watch()
-        .map((query) => query.toList());
+        .map((query) {
+          return query.toList();
+        });
   }
 
   @override

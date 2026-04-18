@@ -295,6 +295,11 @@ class _AppWidgetState extends State<AppWidget> {
               child: useListview
                   ? Column(
                       children: [
+                        if (widget.addButtonInWrap)
+                          FilledButton.tonal(
+                            onPressed: _onAddApp,
+                            child: Text(AppLocalizations.of(context)!.addApp),
+                          ),
                         Expanded(
                           child: StreamBuilder(
                             stream: _stream,
@@ -315,9 +320,9 @@ class _AppWidgetState extends State<AppWidget> {
                                             horizontal: 5,
                                             vertical: 5,
                                           ),
-                                      title: Text(app.appId.value),
+                                      title: Text(app.name ?? app.appId.value),
                                       subtitle: Text(
-                                        app.appId.type.toLocalString(context),
+                                        '${app.appId.type.toLocalString(context)}: ${app.appId.value}',
                                       ),
                                       trailing: IconButton(
                                         onPressed: () {
@@ -333,11 +338,6 @@ class _AppWidgetState extends State<AppWidget> {
                             },
                           ),
                         ),
-                        if (widget.addButtonInWrap)
-                          FilledButton.tonal(
-                            onPressed: _onAddApp,
-                            child: Text(AppLocalizations.of(context)!.addApp),
-                          ),
                       ],
                     )
                   : SingleChildScrollView(
@@ -432,7 +432,7 @@ class _AddAppIdAndroidScreenState extends State<AddAppIdAndroidScreen> {
       _loading = false;
       _originalApps = value;
       for (final app in value) {
-        _selectedApps[app.appId.value] = (icon: app.icon);
+        _selectedApps[app.appId.value] = (icon: app.icon, name: app.name);
       }
       _filterApps();
     });
@@ -465,6 +465,7 @@ class _AddAppIdAndroidScreenState extends State<AddAppIdAndroidScreen> {
               icon: e.value.icon,
               id: 0,
               appSetName: widget.appSetName,
+              name: e.value.name,
             ),
           )
           .toList();
@@ -576,7 +577,7 @@ class _AddAppIdAndroidScreenState extends State<AddAppIdAndroidScreen> {
   }
 }
 
-typedef SelectedApp = ({Uint8List? icon});
+typedef SelectedApp = ({Uint8List? icon, String? name});
 
 class _AppIdTile extends StatefulWidget {
   const _AppIdTile({required this.app, required this.selectedApps, super.key});
@@ -611,7 +612,10 @@ class __AppIdTileState extends State<_AppIdTile> {
       onChanged: (value) {
         if (value == true) {
           _isChecked = true;
-          widget.selectedApps[widget.app.packageName] = (icon: widget.app.icon);
+          widget.selectedApps[widget.app.packageName] = (
+            icon: widget.app.icon,
+            name: widget.app.name,
+          );
           // final data = AppsCompanion(
           //   proxy: const Value(false),
           //   appId: Value(AppId(
@@ -778,7 +782,7 @@ class _AddAppIdDesktopScreenState extends State<AddAppIdDesktopScreen> {
       _loading = false;
       _originalApps = value;
       for (final app in value) {
-        _selectedApps[app.appId.value] = (icon: app.icon);
+        _selectedApps[app.appId.value] = (icon: app.icon, name: app.name);
       }
       _filterApps();
     });
@@ -811,6 +815,7 @@ class _AddAppIdDesktopScreenState extends State<AddAppIdDesktopScreen> {
               icon: e.value.icon,
               id: 0,
               appSetName: widget.appSetName,
+              name: e.value.name,
             ),
           )
           .toList();
@@ -927,7 +932,7 @@ class __DesktopAppIdTileState extends State<_DesktopAppIdTile> {
 
         if (value == true) {
           _isChecked = true;
-          widget.selectedApps[execPath] = (icon: null);
+          widget.selectedApps[execPath] = (icon: null, name: null);
         } else {
           _isChecked = false;
           widget.selectedApps.remove(execPath);
