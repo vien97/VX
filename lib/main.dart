@@ -647,7 +647,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       androidHostApi?.requestAddTile();
     }
     _recordUsageAndScheduleReview(pref);
-    _locale = pref.language?.locale;
+    _locale = pref.language?.locale ?? PlatformDispatcher.instance.locale;
     _themeMode = pref.themeMode;
     WidgetsBinding.instance.addObserver(this);
     if (Platform.isWindows && !isRunningAsAdmin) {
