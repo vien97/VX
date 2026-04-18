@@ -974,6 +974,9 @@ class _Shadowsocks2022ServerState extends State<Shadowsocks2022Server> {
         : _methods.first;
     _tcp = widget.config.networks.contains(Network.TCP);
     _udp = widget.config.networks.contains(Network.UDP);
+    if (widget.config.method.isEmpty) {
+      widget.config.method = _methods.first;
+    }
   }
 
   void _setNetwork(bool tcp, bool udp) {
