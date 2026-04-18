@@ -168,6 +168,10 @@ class ProPurchases extends ChangeNotifier {
       //   }
       //   return;
       // }
+      if (authProvider.currentSession == null) {
+        logger.d('currentSession is null. skip verify');
+        return;
+      }
       await _verifyAndFulfill(stateWithPurchaseDetail);
     } else if (purchaseDetails.status == PurchaseStatus.canceled) {
       if (purchaseDetails.pendingCompletePurchase) {
