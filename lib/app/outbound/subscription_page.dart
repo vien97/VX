@@ -358,6 +358,8 @@ class SubScriptionListTile extends StatefulWidget {
   State<SubScriptionListTile> createState() => _SubScriptionListTileState();
 }
 
+final noExpirationDate = DateTime(9999, 12, 31);
+
 class SubscriptionData {
   final String? totalData;
   final String? usedData;
@@ -406,7 +408,7 @@ class SubscriptionData {
             final day = chineseExpirationMatch.group(3)!.padLeft(2, '0');
             expirationDate = DateTime.tryParse('$year-$month-$day');
           } else {
-            expirationDate = DateTime(9999, 12, 31);
+            expirationDate = noExpirationDate;
           }
           // If group 1 is null, it means "不过期" was matched, so expirationDate stays null
         }
@@ -716,9 +718,11 @@ class _SubScriptionListTileState extends State<SubScriptionListTile> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  DateFormat(
-                                    'yyyy-MM-dd',
-                                  ).format(parsedData.expirationDate!),
+                                  parsedData.expirationDate == noExpirationDate
+                                      ? 'Forever'
+                                      : DateFormat(
+                                          'yyyy-MM-dd',
+                                        ).format(parsedData.expirationDate!),
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         fontWeight: FontWeight.w600,

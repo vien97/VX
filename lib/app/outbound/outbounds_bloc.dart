@@ -150,6 +150,10 @@ class OutboundBloc extends Bloc<OutboundEvent, OutboundState> {
       emit.forEach(
         _xController.handlerBeingUsedStream(),
         onData: (handlerBeingUsed) {
+          if (_pref.proxySelectorMode == ProxySelectorMode.manual) {
+            return state;
+          }
+
           late final int handlerBeingUsedId4;
           if (handlerBeingUsed.tag4.contains('-')) {
             handlerBeingUsedId4 =
@@ -171,7 +175,8 @@ class OutboundBloc extends Bloc<OutboundEvent, OutboundState> {
             handlerBeingUsedId6 = int.tryParse(handlerBeingUsed.tag6) ?? 0;
           }
           List<OutboundHandler> newHandlers = state.handlers;
-          if (handlerBeingUsedId4 != 0 || handlerBeingUsedId6 != 0) {
+          if ((handlerBeingUsedId4 != 0 || handlerBeingUsedId6 != 0) &&
+              state.sortCol == null) {
             newHandlers = stableMoveToFront(
               state.handlers,
               (h) => h.id == handlerBeingUsedId4 || h.id == handlerBeingUsedId6,
@@ -301,11 +306,9 @@ class OutboundBloc extends Bloc<OutboundEvent, OutboundState> {
     (Col, SortOrder)? colSort,
   ) {
     if (colSort == null) {
-      if (state.using4 != 0 /* || state.using6 != 0 */ ) {
-        handlers = stableMoveToFront(
-          handlers,
-          (h) => h.id == state.using4 /* || h.id == state.using6 */,
-        );
+      if (state.using4 != 0 &&
+          _pref.proxySelectorMode == ProxySelectorMode.auto) {
+        handlers = stableMoveToFront(handlers, (h) => h.id == state.using4);
       }
       return handlers;
     }
@@ -501,7 +504,9 @@ class OutboundBloc extends Bloc<OutboundEvent, OutboundState> {
             selected: true,
           );
           final m = {
-            e.handler.id: const OutboundHandlersCompanion(selected: Value(true)),
+            e.handler.id: const OutboundHandlersCompanion(
+              selected: Value(true),
+            ),
           };
           for (var h in currentSelected) {
             m[h.id] = const OutboundHandlersCompanion(selected: Value(false));
@@ -1402,9 +1407,11 @@ class OutboundState {
   final List<NodeGroup> groups;
   // when this list changes, create a new list to trigger blocSelector builder
   final List<OutboundHandler> handlers;
-  // the handler used to handler ipv4 in auto single handler mode
+  // the handler used to handle ipv4 in auto single handler mode. Should only
+  // populated in auto single handler mode.
   final int using4;
-  // the handler used to handler ipv6 in auto single handler mode
+  // the handler used to handle ipv6 in auto single handler mode. Should only
+  // populated in auto single handler mode.
   // final int using6;
   final bool testingArea;
   final (Col, SortOrder)? sortCol;

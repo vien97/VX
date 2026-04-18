@@ -382,6 +382,8 @@ class OutboundTableState extends State<OutboundTable> {
                                                               showAddress:
                                                                   smallScreenPref
                                                                       .showAddress,
+                                                              multiSelect:
+                                                                  multiSelect,
                                                             ),
                                                           );
                                                         },

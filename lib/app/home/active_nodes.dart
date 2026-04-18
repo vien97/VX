@@ -165,9 +165,6 @@ class ActiveNodes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final realtime = context.watch<RealtimeSpeedNotifier>();
-    if (realtime.nodeInfos.isEmpty) {
-      return const SizedBox();
-    }
     return HomeCard(
       title: AppLocalizations.of(context)!.activeNodes,
       icon: Icons.outbound,
@@ -175,22 +172,30 @@ class ActiveNodes extends StatelessWidget {
         constraints: BoxConstraints(maxHeight: desktopPlatforms ? 227 : 235),
         child: ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(scrollbars: true),
-          child: _AbsorbParentPointerScrollAtEdge(
-            builder: (context, scrollController) => ListView.separated(
-              controller: scrollController,
-              shrinkWrap: true,
-              physics: const ClampingScrollPhysics(),
-              separatorBuilder: (context, index) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Divider(height: 1, color: Colors.grey.withOpacity(0.1)),
-              ),
-              itemCount: realtime.nodeInfos.length,
-              itemBuilder: (context, index) {
-                final nodeInfo = realtime.nodeInfos[index];
-                return NodeCard(nodeInfo: nodeInfo);
-              },
-            ),
-          ),
+          child: realtime.nodeInfos.isEmpty
+              ? const SizedBox(
+                  height: 80,
+                  child: Center(child: Text('No active nodes')),
+                )
+              : _AbsorbParentPointerScrollAtEdge(
+                  builder: (context, scrollController) => ListView.separated(
+                    controller: scrollController,
+                    shrinkWrap: true,
+                    physics: const ClampingScrollPhysics(),
+                    separatorBuilder: (context, index) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Divider(
+                        height: 1,
+                        color: Colors.grey.withOpacity(0.1),
+                      ),
+                    ),
+                    itemCount: realtime.nodeInfos.length,
+                    itemBuilder: (context, index) {
+                      final nodeInfo = realtime.nodeInfos[index];
+                      return NodeCard(nodeInfo: nodeInfo);
+                    },
+                  ),
+                ),
         ),
       ),
     );

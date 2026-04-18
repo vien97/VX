@@ -969,6 +969,38 @@ class LandHandlerSelect extends StatefulWidget {
 }
 
 class _LandHandlerSelectState extends State<LandHandlerSelect> {
+  bool _isAddMenuLoading = false;
+  Map<String, List<OutboundHandler>> _addMenuHandlersByGroup = {};
+
+  Future<void> _loadAddMenuHandlers() async {
+    if (_isAddMenuLoading) return;
+    setState(() {
+      _isAddMenuLoading = true;
+    });
+
+    final repo = context.read<OutboundRepo>();
+    final groups = context.read<OutboundBloc>().state.groups;
+    final handlersByGroup = <String, List<OutboundHandler>>{};
+    try {
+      for (final group in groups) {
+        final handlers = await repo.getHandlersByNodeGroup(group);
+        handlersByGroup[group.name] = handlers
+            .where((handler) => handler.config.hasOutbound())
+            .toList();
+      }
+      if (!mounted) return;
+      setState(() {
+        _addMenuHandlersByGroup = handlersByGroup;
+        _isAddMenuLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isAddMenuLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Wrap(
@@ -1097,51 +1129,45 @@ class _LandHandlerSelectState extends State<LandHandlerSelect> {
             },
           ),
         MenuAnchor(
-          menuChildren: context
-              .read<OutboundBloc>()
-              .state
-              .groups
-              .map(
-                (e) => FutureBuilder(
-                  future: context.read<OutboundRepo>().getHandlersByNodeGroup(
-                    e,
-                  ),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const SizedBox.shrink();
-                    }
-                    return SubmenuButton(
-                      menuChildren:
-                          snapshot.data
-                              ?.where((e) => e.config.hasOutbound())
-                              .map(
-                                (e) => MenuItemButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      widget.landHandlers.add(Int64(e.id));
-                                    });
-                                    widget.onAdd(e.id);
-                                  },
-                                  child: Text(e.name),
-                                ),
-                              )
-                              .toList() ??
-                          [],
-                      child: Text(groupNametoLocalizedName(context, e.name)),
-                    );
-                  },
-                ),
-              )
-              .toList(),
+          menuChildren: context.watch<OutboundBloc>().state.groups.map((e) {
+            final handlers =
+                _addMenuHandlersByGroup[e.name] ?? const <OutboundHandler>[];
+            return SubmenuButton(
+              menuChildren: handlers
+                  .map(
+                    (handler) => MenuItemButton(
+                      onPressed: () {
+                        setState(() {
+                          widget.landHandlers.add(Int64(handler.id));
+                        });
+                        widget.onAdd(handler.id);
+                      },
+                      child: Text(handler.name),
+                    ),
+                  )
+                  .toList(),
+              child: Text(groupNametoLocalizedName(context, e.name)),
+            );
+          }).toList(),
           builder: (context, controller, child) => Padding(
             padding: const EdgeInsets.only(left: 5),
             child: IconButton.filledTonal(
-              onPressed: () => controller.open(),
+              onPressed: () async {
+                await _loadAddMenuHandlers();
+                if (!mounted) return;
+                controller.open();
+              },
               style: IconButton.styleFrom(
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.all(0),
               ),
-              icon: const Icon(Icons.add_rounded, size: 18),
+              icon: _isAddMenuLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_rounded, size: 18),
             ),
           ),
         ),

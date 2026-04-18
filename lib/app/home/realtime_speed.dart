@@ -20,13 +20,13 @@ class NodeInfo {
   final String name;
   final String serverIp;
   final Widget country;
-  final CircularBuffer<NodeStats> statsHistory;
+  NodeStats stats;
   NodeInfo({
     required this.id,
     required this.name,
     required this.serverIp,
     required this.country,
-    required this.statsHistory,
+    required this.stats,
   });
 }
 
@@ -237,6 +237,10 @@ class RealtimeSpeedNotifier extends ChangeNotifier {
         (element) => element.id == stat.id,
       );
       NodeInfo? nodeInfo;
+      final iv = stat.interval;
+      final upRate = iv > 0 ? (stat.up.toInt() / iv).round() : 0;
+      final downRate = iv > 0 ? (stat.down.toInt() / iv).round() : 0;
+      final stats = (stat.rate.toInt(), stat.ping.toInt(), upRate, downRate);
       if (nodeInfoIndex < 0) {
         final name = await _outboundRepo.getHandlerName(stat.id);
         late OutboundHandler handler;
@@ -254,31 +258,20 @@ class RealtimeSpeedNotifier extends ChangeNotifier {
               ? handler.address
               : handler.serverIp,
           country: handler.countryIcon,
-          statsHistory: CircularBuffer<NodeStats>(maxSize: 500),
+          stats: stats,
         );
         newList.add(nodeInfo);
       } else {
         nodeInfo = nodeInfos[nodeInfoIndex];
-        // if a node has no traffic for 10 seconds, remove it
-        final last = nodeInfo.statsHistory.last;
-        if (stat.up == 0 &&
-            stat.down == 0 &&
-            last.$1 == 0 &&
-            last.$3 == 0 &&
-            last.$4 == 0) {
-          continue;
-        }
+        // if (nodeInfo.statsHistory.$3 == 0 &&
+        //     nodeInfo.statsHistory.$4 == 0 &&
+        //     stats.$3 == 0 &&
+        //     stats.$4 == 0) {
+        //   continue;
+        // }
+        nodeInfo.stats = stats;
         newList.add(nodeInfo);
       }
-      final iv = stat.interval;
-      final upRate = iv > 0 ? (stat.up.toInt() / iv).round() : 0;
-      final downRate = iv > 0 ? (stat.down.toInt() / iv).round() : 0;
-      nodeInfo.statsHistory.add((
-        stat.rate.toInt(),
-        stat.ping.toInt(),
-        upRate,
-        downRate,
-      ));
     }
     if (interval > 0) {
       uploadSpeed = uploadTotal ~/ interval;
@@ -1448,9 +1441,7 @@ class _NodeCardState extends State<NodeCard> {
 
   @override
   Widget build(BuildContext context) {
-    final latestStats = widget.nodeInfo.statsHistory.isNotEmpty
-        ? widget.nodeInfo.statsHistory.last
-        : null;
+    final latestStats = widget.nodeInfo.stats;
     final throughput = latestStats?.$1 ?? 0;
     final latency = latestStats?.$2 ?? 0;
     final uploadSpeed = latestStats?.$3 ?? 0;
@@ -1689,155 +1680,153 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _NodeChart extends StatelessWidget {
-  const _NodeChart({required this.nodeInfo, required this.chartType});
+// class _NodeChart extends StatelessWidget {
+//   const _NodeChart({required this.nodeInfo, required this.chartType});
 
-  final NodeInfo nodeInfo;
-  final String chartType;
+//   final NodeInfo nodeInfo;
+//   final String chartType;
 
-  @override
-  Widget build(BuildContext context) {
-    if (nodeInfo.statsHistory.isEmpty) {
-      return Center(
-        child: Text(
-          'No data',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
+//   @override
+//   Widget build(BuildContext context) {
+//     if (nodeInfo.statsHistory.isEmpty) {
+//       return Center(
+//         child: Text(
+//           'No data',
+//           style: Theme.of(context).textTheme.bodySmall?.copyWith(
+//             color: Theme.of(context).colorScheme.onSurfaceVariant,
+//           ),
+//         ),
+//       );
+//     }
 
-    Color color;
-    String label;
-    List<int> dataValues;
+//     Color color;
+//     String label;
+//     List<int> dataValues;
 
-    switch (chartType) {
-      case 'rate':
-        color = ShimmerPurple;
-        label = AppLocalizations.of(context)!.realtimeRate;
-        dataValues = nodeInfo.statsHistory.toList().map((e) => e.$1).toList();
-        break;
-      // case 'upload':
-      //   color = XPink;
-      //   label = AppLocalizations.of(context)!.upload;
-      //   dataValues = nodeInfo.statsHistory.toList().map((e) => e.$3).toList();
-      //   break;
-      // case 'download':
-      //   color = XBlue;
-      //   label = AppLocalizations.of(context)!.download;
-      //   dataValues = nodeInfo.statsHistory.toList().map((e) => e.$4).toList();
-      //   break;
-      case 'latency':
-        color = VioletBlue;
-        label = AppLocalizations.of(context)!.realtimeLatency;
-        dataValues = nodeInfo.statsHistory.toList().map((e) => e.$2).toList();
-        break;
-      default:
-        color = Colors.grey;
-        label = '';
-        dataValues = [];
-    }
+//     switch (chartType) {
+//       case 'rate':
+//         color = ShimmerPurple;
+//         label = AppLocalizations.of(context)!.realtimeRate;
+//         break;
+//       // case 'upload':
+//       //   color = XPink;
+//       //   label = AppLocalizations.of(context)!.upload;
+//       //   dataValues = nodeInfo.statsHistory.toList().map((e) => e.$3).toList();
+//       //   break;
+//       // case 'download':
+//       //   color = XBlue;
+//       //   label = AppLocalizations.of(context)!.download;
+//       //   dataValues = nodeInfo.statsHistory.toList().map((e) => e.$4).toList();
+//       //   break;
+//       case 'latency':
+//         color = VioletBlue;
+//         label = AppLocalizations.of(context)!.realtimeLatency;
+//         break;
+//       default:
+//         color = Colors.grey;
+//         label = '';
+//         dataValues = [];
+//     }
 
-    return LineChart(
-      _buildNodeChartData(
-        dataValues,
-        color,
-        label == AppLocalizations.of(context)!.realtimeLatency,
-      ),
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeInOut,
-    );
-  }
+//     return LineChart(
+//       _buildNodeChartData(
+//         dataValues,
+//         color,
+//         label == AppLocalizations.of(context)!.realtimeLatency,
+//       ),
+//       duration: const Duration(milliseconds: 150),
+//       curve: Curves.easeInOut,
+//     );
+//   }
 
-  LineChartData _buildNodeChartData(
-    List<int> dataValues,
-    Color color,
-    bool isLatency,
-  ) {
-    if (dataValues.isEmpty) {
-      return LineChartData(
-        lineBarsData: [],
-        minX: 0,
-        maxX: 1,
-        minY: 0,
-        maxY: 100,
-      );
-    }
+//   LineChartData _buildNodeChartData(
+//     List<int> dataValues,
+//     Color color,
+//     bool isLatency,
+//   ) {
+//     if (dataValues.isEmpty) {
+//       return LineChartData(
+//         lineBarsData: [],
+//         minX: 0,
+//         maxX: 1,
+//         minY: 0,
+//         maxY: 100,
+//       );
+//     }
 
-    // Average data to reduce number of points
-    final averagedValues = <int>[];
-    for (int i = 0; i < dataValues.length; i += _averageGroupSize) {
-      final end = (i + _averageGroupSize).clamp(0, dataValues.length);
-      final group = dataValues.sublist(i, end);
-      final avgValue = (group.reduce((a, b) => a + b) / group.length).round();
-      averagedValues.add(avgValue);
-    }
+//     // Average data to reduce number of points
+//     final averagedValues = <int>[];
+//     for (int i = 0; i < dataValues.length; i += _averageGroupSize) {
+//       final end = (i + _averageGroupSize).clamp(0, dataValues.length);
+//       final group = dataValues.sublist(i, end);
+//       final avgValue = (group.reduce((a, b) => a + b) / group.length).round();
+//       averagedValues.add(avgValue);
+//     }
 
-    final spots = averagedValues.asMap().entries.map((entry) {
-      return FlSpot(entry.key.toDouble(), entry.value.toDouble());
-    }).toList();
+//     final spots = averagedValues.asMap().entries.map((entry) {
+//       return FlSpot(entry.key.toDouble(), entry.value.toDouble());
+//     }).toList();
 
-    final maxValue = averagedValues.reduce((a, b) => a > b ? a : b);
-    final maxY = (maxValue * 1.1).toDouble().clamp(1.0, double.infinity);
-    const minY = 0.0;
+//     final maxValue = averagedValues.reduce((a, b) => a > b ? a : b);
+//     final maxY = (maxValue * 1.1).toDouble().clamp(1.0, double.infinity);
+//     const minY = 0.0;
 
-    return LineChartData(
-      gridData: FlGridData(
-        show: true,
-        drawVerticalLine: false,
-        horizontalInterval: maxY / 3,
-        getDrawingHorizontalLine: (value) {
-          return FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1);
-        },
-      ),
-      titlesData: const FlTitlesData(show: false),
-      borderData: FlBorderData(show: false),
-      minX: 0,
-      maxX: (averagedValues.length - 1).toDouble().clamp(1.0, double.infinity),
-      minY: minY,
-      maxY: maxY,
-      lineBarsData: [
-        LineChartBarData(
-          spots: spots,
-          isCurved: true,
-          color: color,
-          barWidth: 2,
-          isStrokeCapRound: true,
-          dotData: const FlDotData(show: false),
-          belowBarData: BarAreaData(
-            show: true,
-            color: color.withOpacity(0.1),
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [color.withOpacity(0.2), color.withOpacity(0.0)],
-            ),
-          ),
-        ),
-      ],
-      lineTouchData: LineTouchData(
-        enabled: true,
-        touchTooltipData: LineTouchTooltipData(
-          getTooltipColor: (_) => color,
-          tooltipPadding: const EdgeInsets.all(6),
-          getTooltipItems: (List<LineBarSpot> touchedSpots) {
-            return touchedSpots.map((touchedSpot) {
-              final valueStr = isLatency
-                  ? '${touchedSpot.y.toInt()}ms'
-                  : bytesToReadable(touchedSpot.y.toInt());
-              return LineTooltipItem(
-                valueStr,
-                const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
-                ),
-              );
-            }).toList();
-          },
-        ),
-      ),
-    );
-  }
-}
+//     return LineChartData(
+//       gridData: FlGridData(
+//         show: true,
+//         drawVerticalLine: false,
+//         horizontalInterval: maxY / 3,
+//         getDrawingHorizontalLine: (value) {
+//           return FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1);
+//         },
+//       ),
+//       titlesData: const FlTitlesData(show: false),
+//       borderData: FlBorderData(show: false),
+//       minX: 0,
+//       maxX: (averagedValues.length - 1).toDouble().clamp(1.0, double.infinity),
+//       minY: minY,
+//       maxY: maxY,
+//       lineBarsData: [
+//         LineChartBarData(
+//           spots: spots,
+//           isCurved: true,
+//           color: color,
+//           barWidth: 2,
+//           isStrokeCapRound: true,
+//           dotData: const FlDotData(show: false),
+//           belowBarData: BarAreaData(
+//             show: true,
+//             color: color.withOpacity(0.1),
+//             gradient: LinearGradient(
+//               begin: Alignment.topCenter,
+//               end: Alignment.bottomCenter,
+//               colors: [color.withOpacity(0.2), color.withOpacity(0.0)],
+//             ),
+//           ),
+//         ),
+//       ],
+//       lineTouchData: LineTouchData(
+//         enabled: true,
+//         touchTooltipData: LineTouchTooltipData(
+//           getTooltipColor: (_) => color,
+//           tooltipPadding: const EdgeInsets.all(6),
+//           getTooltipItems: (List<LineBarSpot> touchedSpots) {
+//             return touchedSpots.map((touchedSpot) {
+//               final valueStr = isLatency
+//                   ? '${touchedSpot.y.toInt()}ms'
+//                   : bytesToReadable(touchedSpot.y.toInt());
+//               return LineTooltipItem(
+//                 valueStr,
+//                 const TextStyle(
+//                   color: Colors.white,
+//                   fontWeight: FontWeight.bold,
+//                   fontSize: 10,
+//                 ),
+//               );
+//             }).toList();
+//           },
+//         ),
+//       ),
+//     );
+//   }
+// }

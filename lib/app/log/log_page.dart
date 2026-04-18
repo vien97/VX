@@ -20,6 +20,7 @@ import 'package:drift/native.dart';
 import 'package:drift/remote.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:vx/app/routing/mode_widget.dart';
 import 'package:vx/common/net.dart';
 import 'package:flutter_common/util/net.dart';
 import 'package:gap/gap.dart';
@@ -38,8 +39,9 @@ import 'package:vx/app/routing/selector_widget.dart';
 import 'package:vx/app/x_controller.dart';
 import 'package:vx/common/common.dart';
 import 'package:vx/common/config.dart';
+import 'package:vx/data/database.dart';
+import 'package:vx/data/database_provider.dart';
 import 'package:vx/l10n/app_localizations.dart';
-import 'package:flutter_common/util/net.dart';
 import 'package:vx/theme.dart';
 import 'package:vx/utils/logger.dart';
 import 'package:vx/main.dart';
@@ -873,23 +875,7 @@ class _LogListState extends State<LogList> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (showTrailing)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: Text(
-                          (isDirect
-                              ? AppLocalizations.of(context)!.addToProxy
-                              : AppLocalizations.of(context)!.addToDirect),
-                          style: Theme.of(context).textTheme.titleLarge!
-                              .copyWith(fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    SafeArea(child: child),
-                  ],
+                  children: [SafeArea(child: child)],
                 ),
               ),
             ),
@@ -909,16 +895,6 @@ class _LogListState extends State<LogList> {
                     size: 32,
                     color: Theme.of(context).colorScheme.error,
                   ),
-            title: showTrailing
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      (isDirect
-                          ? AppLocalizations.of(context)!.addToProxy
-                          : AppLocalizations.of(context)!.addToDirect),
-                    ),
-                  )
-                : null,
             scrollable: true,
             content: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 500),
@@ -986,12 +962,59 @@ class _LogListState extends State<LogList> {
   }) {
     bool domainAdded = false;
     return ListTile(
-      title: Text(
-        title,
-        style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-          color: XBlue,
-          fontWeight: FontWeight.w500,
-        ),
+      title: Row(
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+              color: XBlue,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          // StatefulBuilder(
+          //   builder: (context, setState) {
+          //     return TextButton(
+          //       onPressed: domainAdded
+          //           ? null
+          //           : () async {
+          //               final xController = context.read<XController>();
+          //               List<String> domains = [];
+          //               if (domain.contains(',')) {
+          //                 domains = domain.split(',');
+          //               } else {
+          //                 domains.add(domain);
+          //               }
+          //               for (var domain in domains) {
+          //                 if (isDomain(domain)) {
+          //                   final d = Domain(
+          //                     type: Domain_Type.RootDomain,
+          //                     value: domain,
+          //                   );
+          //                   final setName = isDirect
+          //                       ? getCustomProxy(context)
+          //                       : getCustomDirect(context);
+          //                   await Provider.of<SetRepo>(
+          //                     context,
+          //                     listen: false,
+          //                   ).addGeoDomain(setName, d);
+          //                   setState(() {
+          //                     domainAdded = true;
+          //                   });
+          //                   xController.addGeoDomain(setName, d);
+          //                 }
+          //               }
+          //             },
+          //       child: domainAdded
+          //           ? Icon(Icons.check_rounded, size: 18)
+          //           : Text(
+          //               isDirect
+          //                   ? AppLocalizations.of(context)!.addToProxy
+          //                   : AppLocalizations.of(context)!.addToDirect,
+          //             ),
+          //     );
+          //   },
+          // ),
+        ],
       ),
       subtitle: Text(
         domain,
@@ -1000,48 +1023,29 @@ class _LogListState extends State<LogList> {
       ),
       trailing: !showTrailing
           ? null
-          : StatefulBuilder(
-              builder: (context, setState) {
-                return IconButton.filledTonal(
-                  onPressed: domainAdded
-                      ? null
-                      : () async {
-                          final xController = context.read<XController>();
-                          List<String> domains = [];
-                          if (domain.contains(',')) {
-                            domains = domain.split(',');
-                          } else {
-                            domains.add(domain);
-                          }
-                          for (var domain in domains) {
-                            if (isDomain(domain)) {
-                              final d = Domain(
-                                type: Domain_Type.RootDomain,
-                                value: domain,
-                              );
-                              final setName = isDirect
-                                  ? getCustomProxy(context)
-                                  : getCustomDirect(context);
-                              await Provider.of<SetRepo>(
-                                context,
-                                listen: false,
-                              ).addGeoDomain(setName, d);
-                              setState(() {
-                                domainAdded = true;
-                              });
-                              xController.addGeoDomain(setName, d);
-                            }
-                          }
-                        },
-                  icon: domainAdded
-                      ? const Icon(Icons.check_rounded, size: 18)
-                      : const Icon(Icons.add_rounded, size: 18),
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                  padding: EdgeInsets.zero,
-                );
+          : _DomainSetPickerButton(
+              onChanged: (setName) async {
+                final xController = context.read<XController>();
+                List<String> domains = [];
+                if (domain.contains(',')) {
+                  domains = domain.split(',');
+                } else {
+                  domains.add(domain);
+                }
+                for (var domain in domains) {
+                  final normalizedDomain = domain.trim();
+                  if (isDomain(normalizedDomain)) {
+                    final d = Domain(
+                      type: Domain_Type.RootDomain,
+                      value: normalizedDomain,
+                    );
+                    await Provider.of<SetRepo>(
+                      context,
+                      listen: false,
+                    ).addGeoDomain(setName, d);
+                    xController.addGeoDomain(setName, d);
+                  }
+                }
               },
             ),
     );
@@ -1054,18 +1058,86 @@ class _LogListState extends State<LogList> {
     String resolver = '',
   }) {
     bool domainAdded = false;
+    final isDestinationDomain = isDomain(destination);
     final dst = Text(
       destination,
       maxLines: 3,
       style: Theme.of(context).textTheme.bodyLarge,
     );
     return ListTile(
-      title: Text(
-        AppLocalizations.of(context)!.address,
-        style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-          color: XBlue,
-          fontWeight: FontWeight.w500,
-        ),
+      title: Row(
+        children: [
+          Text(
+            AppLocalizations.of(context)!.address,
+            style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+              color: XBlue,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          // StatefulBuilder(
+          //   builder: (context, setState) {
+          //     return TextButton(
+          //       onPressed: domainAdded
+          //           ? null
+          //           : () async {
+          //               try {
+          //                 final xController = context.read<XController>();
+          //                 // check if dst is an ip
+          //                 final domain = isDomain(destination);
+          //                 if (domain) {
+          //                   final d = Domain(
+          //                     type: Domain_Type.Full,
+          //                     value: destination,
+          //                   );
+          //                   final setName = isDirect
+          //                       ? getCustomProxy(context)
+          //                       : getCustomDirect(context);
+          //                   await Provider.of<SetRepo>(
+          //                     context,
+          //                     listen: false,
+          //                   ).addGeoDomain(setName, d);
+          //                   xController.addGeoDomain(setName, d);
+          //                 } else {
+          //                   final normalizedIp = normalizeIp(destination);
+          //                   if (isValidIp(normalizedIp)) {
+          //                     await Provider.of<SetRepo>(
+          //                       context,
+          //                       listen: false,
+          //                     ).addCidr(
+          //                       isDirect
+          //                           ? getCustomProxy(context)
+          //                           : getCustomDirect(context),
+          //                       ipToCidr(normalizedIp),
+          //                     );
+          //                   }
+          //                 }
+          //                 setState(() {
+          //                   domainAdded = true;
+          //                 });
+          //               } on DriftRemoteException catch (e) {
+          //                 if (e.remoteCause is SqliteException &&
+          //                     (e.remoteCause as SqliteException)
+          //                             .extendedResultCode ==
+          //                         2067) {
+          //                   snack(
+          //                     rootLocalizations()?.addFailedUniqueConstraint,
+          //                   );
+          //                 }
+          //               } catch (e) {
+          //                 logger.d('add address error', error: e);
+          //               }
+          //             },
+          //       child: domainAdded
+          //           ? const Icon(Icons.check_rounded, size: 18)
+          //           : Text(
+          //               isDirect
+          //                   ? AppLocalizations.of(context)!.addToProxy
+          //                   : AppLocalizations.of(context)!.addToDirect,
+          //             ),
+          //     );
+          //   },
+          // ),
+        ],
       ),
       subtitle: (resolver.isNotEmpty)
           ? Column(
@@ -1083,68 +1155,48 @@ class _LogListState extends State<LogList> {
           : dst,
       trailing: !showTrailing
           ? null
-          : StatefulBuilder(
-              builder: (context, setState) {
-                return IconButton.filledTonal(
-                  onPressed: domainAdded
-                      ? null
-                      : () async {
-                          try {
-                            final xController = context.read<XController>();
-                            // check if dst is an ip
-                            final domain = isDomain(destination);
-                            if (domain) {
-                              final d = Domain(
-                                type: Domain_Type.Full,
-                                value: destination,
-                              );
-                              final setName = isDirect
-                                  ? getCustomProxy(context)
-                                  : getCustomDirect(context);
-                              await Provider.of<SetRepo>(
-                                context,
-                                listen: false,
-                              ).addGeoDomain(setName, d);
-                              xController.addGeoDomain(setName, d);
-                            } else {
-                              final normalizedIp = normalizeIp(destination);
-                              if (isValidIp(normalizedIp)) {
-                                await Provider.of<SetRepo>(
-                                  context,
-                                  listen: false,
-                                ).addCidr(
-                                  isDirect
-                                      ? getCustomProxy(context)
-                                      : getCustomDirect(context),
-                                  ipToCidr(normalizedIp),
-                                );
-                              }
-                            }
-                            setState(() {
-                              domainAdded = true;
-                            });
-                          } on DriftRemoteException catch (e) {
-                            if (e.remoteCause is SqliteException &&
-                                (e.remoteCause as SqliteException)
-                                        .extendedResultCode ==
-                                    2067) {
-                              snack(
-                                rootLocalizations()?.addFailedUniqueConstraint,
-                              );
-                            }
-                          } catch (e) {
-                            logger.d('add address error', error: e);
-                          }
-                        },
-                  icon: domainAdded
-                      ? const Icon(Icons.check_rounded, size: 18)
-                      : const Icon(Icons.add_rounded, size: 18),
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                  padding: EdgeInsets.zero,
-                );
+          : isDestinationDomain
+          ? _DomainSetPickerButton(
+              onChanged: (setName) async {
+                try {
+                  final xController = context.read<XController>();
+                  final d = Domain(type: Domain_Type.Full, value: destination);
+                  await Provider.of<SetRepo>(
+                    context,
+                    listen: false,
+                  ).addGeoDomain(setName, d);
+                  xController.addGeoDomain(setName, d);
+                } on DriftRemoteException catch (e) {
+                  if (e.remoteCause is SqliteException &&
+                      (e.remoteCause as SqliteException).extendedResultCode ==
+                          2067) {
+                    snack(rootLocalizations()?.addFailedUniqueConstraint);
+                  }
+                } catch (e) {
+                  logger.d('add address error', error: e);
+                }
+              },
+            )
+          : _IpSetPickerButton(
+              onChanged: (setName) async {
+                try {
+                  final normalizedIp = normalizeIp(destination);
+                  if (!isValidIp(normalizedIp)) {
+                    return;
+                  }
+                  await Provider.of<SetRepo>(
+                    context,
+                    listen: false,
+                  ).addCidr(setName, ipToCidr(normalizedIp));
+                } on DriftRemoteException catch (e) {
+                  if (e.remoteCause is SqliteException &&
+                      (e.remoteCause as SqliteException).extendedResultCode ==
+                          2067) {
+                    snack(rootLocalizations()?.addFailedUniqueConstraint);
+                  }
+                } catch (e) {
+                  logger.d('add address error', error: e);
+                }
               },
             ),
     );
@@ -1157,48 +1209,63 @@ class _LogListState extends State<LogList> {
   }) {
     bool appNameAdded = false;
     return ListTile(
-      title: Text(
-        AppLocalizations.of(context)!.appKeyword,
-        style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-          color: XBlue,
-          fontWeight: FontWeight.w500,
-        ),
+      title: Row(
+        children: [
+          Text(
+            AppLocalizations.of(context)!.appKeyword,
+            style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+              color: XBlue,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          // StatefulBuilder(
+          //   builder: (context, setState) {
+          //     return TextButton(
+          //       onPressed: appNameAdded
+          //           ? null
+          //           : () async {
+          //               try {
+          //                 await Provider.of<SetRepo>(
+          //                   context,
+          //                   listen: false,
+          //                 ).addApp(
+          //                   isDirect
+          //                       ? getProxySetName(context)
+          //                       : getDirectSetName(context),
+          //                   AppId(type: AppId_Type.Keyword, value: appName),
+          //                 );
+          //                 setState(() {
+          //                   appNameAdded = true;
+          //                 });
+          //               } catch (e) {
+          //                 logger.d('add app name error', error: e);
+          //               }
+          //             },
+          //       child: appNameAdded
+          //           ? Icon(Icons.check_rounded, size: 18)
+          //           : Text(
+          //               isDirect
+          //                   ? AppLocalizations.of(context)!.addToProxy
+          //                   : AppLocalizations.of(context)!.addToDirect,
+          //             ),
+          //     );
+          //   },
+          // ),
+        ],
       ),
       subtitle: Text(appName, style: Theme.of(context).textTheme.bodyLarge),
       trailing: !showTrailing
           ? null
-          : StatefulBuilder(
-              builder: (context, setState) {
-                return IconButton.filledTonal(
-                  onPressed: appNameAdded
-                      ? null
-                      : () async {
-                          try {
-                            await Provider.of<SetRepo>(
-                              context,
-                              listen: false,
-                            ).addApp(
-                              isDirect
-                                  ? getProxySetName(context)
-                                  : getDirectSetName(context),
-                              AppId(type: AppId_Type.Keyword, value: appName),
-                            );
-                            setState(() {
-                              appNameAdded = true;
-                            });
-                          } catch (e) {
-                            logger.d('add app name error', error: e);
-                          }
-                        },
-                  icon: appNameAdded
-                      ? const Icon(Icons.check_rounded, size: 18)
-                      : const Icon(Icons.add_rounded, size: 18),
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                  padding: EdgeInsets.zero,
-                );
+          : _AppSetPickerButton(
+              onChanged: (setName) async {
+                try {
+                  await Provider.of<SetRepo>(context, listen: false).addApp(
+                    setName,
+                    AppId(type: AppId_Type.Keyword, value: appName),
+                  );
+                } catch (e) {
+                  logger.d('add app name error', error: e);
+                }
               },
             ),
     );
@@ -1212,12 +1279,50 @@ class _LogListState extends State<LogList> {
   }) {
     bool appAdded = false;
     return ListTile(
-      title: Text(
-        AppLocalizations.of(context)!.app,
-        style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-          color: XBlue,
-          fontWeight: FontWeight.w500,
-        ),
+      title: Row(
+        children: [
+          Text(
+            AppLocalizations.of(context)!.app,
+            style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+              color: XBlue,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          // StatefulBuilder(
+          //   builder: (context, setState) {
+          //     return TextButton(
+          //       onPressed: appAdded
+          //           ? null
+          //           : () async {
+          //               try {
+          //                 await Provider.of<SetRepo>(
+          //                   context,
+          //                   listen: false,
+          //                 ).addApp(
+          //                   isDirect
+          //                       ? getProxySetName(context)
+          //                       : getDirectSetName(context),
+          //                   AppId(type: AppId_Type.Exact, value: app),
+          //                   icon: icon,
+          //                 );
+          //                 setState(() {
+          //                   appAdded = true;
+          //                 });
+          //               } catch (e) {
+          //                 logger.d('add exact app id error', error: e);
+          //               }
+          //             },
+          //       child: appAdded
+          //           ? const Icon(Icons.check_rounded, size: 18)
+          //           : Text(
+          //               isDirect
+          //                   ? AppLocalizations.of(context)!.addToProxy
+          //                   : AppLocalizations.of(context)!.addToDirect,
+          //             ),
+          //     );
+          //   },
+          // ),
+        ],
       ),
       subtitle: Text(
         app,
@@ -1227,39 +1332,17 @@ class _LogListState extends State<LogList> {
       ),
       trailing: !showTrailing
           ? null
-          : StatefulBuilder(
-              builder: (context, setState) {
-                return IconButton.filledTonal(
-                  onPressed: appAdded
-                      ? null
-                      : () async {
-                          try {
-                            await Provider.of<SetRepo>(
-                              context,
-                              listen: false,
-                            ).addApp(
-                              isDirect
-                                  ? getProxySetName(context)
-                                  : getDirectSetName(context),
-                              AppId(type: AppId_Type.Exact, value: app),
-                              icon: icon,
-                            );
-                            setState(() {
-                              appAdded = true;
-                            });
-                          } catch (e) {
-                            logger.d('add exact app id error', error: e);
-                          }
-                        },
-                  icon: appAdded
-                      ? const Icon(Icons.check_rounded, size: 18)
-                      : const Icon(Icons.add_rounded, size: 18),
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                  padding: EdgeInsets.zero,
-                );
+          : _AppSetPickerButton(
+              onChanged: (setName) async {
+                try {
+                  await Provider.of<SetRepo>(context, listen: false).addApp(
+                    setName,
+                    AppId(type: AppId_Type.Exact, value: app),
+                    icon: icon,
+                  );
+                } catch (e) {
+                  logger.d('add exact app id error', error: e);
+                }
               },
             ),
     );
@@ -1310,6 +1393,7 @@ class _LogListState extends State<LogList> {
               itemBuilder: (context, index) {
                 XLog log = state.logs[index]!;
                 late Widget child;
+
                 switch (log.runtimeType) {
                   case SessionInfo:
                     final l = log as SessionInfo;
@@ -1346,6 +1430,100 @@ class _LogListState extends State<LogList> {
                         child: _directChip,
                       );
                     }
+                    Widget ink = InkWell(
+                      borderRadius: BorderRadius.circular(15),
+                      overlayColor: const WidgetStatePropertyAll(
+                        Colors.transparent,
+                      ),
+                      onTap: () => _onTap(l, isDirect, compact),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        child: Row(
+                          children: [
+                            if (state.showApp && l.icon != null)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 5),
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: Image.memory(l.icon!),
+                                ),
+                              ),
+                            if (l.abnormal)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 5),
+                                child: Icon(
+                                  Icons.error_outline_rounded,
+                                  size: 18,
+                                  color: l.abnormalColor(context),
+                                ),
+                              ),
+                            if (state.showApp &&
+                                l.icon == null &&
+                                l.appName.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 5),
+                                child: Text(
+                                  l.appName,
+                                  style: textStyle.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            Text(l.displayDst, style: textStyle),
+                            if (state.showRealtimeUsage &&
+                                l.up != null &&
+                                l.down != null &&
+                                !compact)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Text(
+                                  '↑${l.up}  ↓${l.down}',
+                                  style: Theme.of(context).textTheme.labelSmall!
+                                      .copyWith(
+                                        fontFeatures: [
+                                          const FontFeature.tabularFigures(),
+                                        ],
+                                      )
+                                      .copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.secondary,
+                                      ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                    if (state.showRealtimeUsage &&
+                        l.up != null &&
+                        l.down != null &&
+                        compact) {
+                      ink = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ink,
+                          Text(
+                            ' ↑${l.up}  ↓${l.down}',
+                            style: Theme.of(context).textTheme.labelSmall!
+                                .copyWith(
+                                  fontFeatures: [
+                                    const FontFeature.tabularFigures(),
+                                  ],
+                                  fontSize: 8,
+                                )
+                                .copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.secondary,
+                                ),
+                          ),
+                        ],
+                      );
+                    }
                     child = Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -1364,75 +1542,7 @@ class _LogListState extends State<LogList> {
                               color: ShimmerPurple,
                             ),
                           ),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(15),
-                          overlayColor: const WidgetStatePropertyAll(
-                            Colors.transparent,
-                          ),
-                          onTap: () => _onTap(l, isDirect, compact),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 5),
-                            child: Row(
-                              children: [
-                                if (state.showApp && l.icon != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 5),
-                                    child: SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: Image.memory(l.icon!),
-                                    ),
-                                  ),
-                                if (l.abnormal)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 5),
-                                    child: Icon(
-                                      Icons.error_outline_rounded,
-                                      size: 18,
-                                      color: l.abnormalColor(context),
-                                    ),
-                                  ),
-                                if (state.showApp &&
-                                    l.icon == null &&
-                                    l.appName.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 5),
-                                    child: Text(
-                                      l.appName,
-                                      style: textStyle.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                      ),
-                                    ),
-                                  ),
-                                Text(l.displayDst, style: textStyle),
-                                if (state.showRealtimeUsage &&
-                                    l.up != null &&
-                                    l.down != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 8),
-                                    child: Text(
-                                      '↑${l.up}  ↓${l.down}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall!
-                                          .copyWith(
-                                            fontFeatures: [
-                                              const FontFeature.tabularFigures(),
-                                            ],
-                                          )
-                                          .copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.secondary,
-                                          ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
+                        ink,
                         // Gap(5),
                         // const Icon(Icons.east, size: 24, color: Colors.grey),
                         // Gap(5),
@@ -1612,6 +1722,160 @@ class _LogListState extends State<LogList> {
                 ),
         ),
       ),
+    );
+  }
+}
+
+class _DomainSetPickerButton extends StatefulWidget {
+  const _DomainSetPickerButton({required this.onChanged});
+
+  final Future<void> Function(String) onChanged;
+
+  @override
+  State<_DomainSetPickerButton> createState() => _DomainSetPickerButtonState();
+}
+
+class _DomainSetPickerButtonState extends State<_DomainSetPickerButton> {
+  Future<List<AtomicDomainSet>>? _getAtomicDomainSetsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final database = context.read<DatabaseProvider>().database;
+    _getAtomicDomainSetsFuture = database.managers.atomicDomainSets.get();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuAnchor(
+      menuChildren: [
+        FutureBuilder(
+          future: _getAtomicDomainSetsFuture,
+          builder: (ctx, snapshot) {
+            if (!snapshot.hasData) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: snapshot.data!
+                  .map(
+                    (e) => MenuItemButton(
+                      onPressed: () => widget.onChanged(e.name),
+                      child: Text(localizedSetName(context, e.name)),
+                    ),
+                  )
+                  .toList(),
+            );
+          },
+        ),
+      ],
+      builder: (context, controller, child) => IconButton.filledTonal(
+        onPressed: () => controller.open(),
+        icon: const Icon(Icons.add_rounded, size: 18),
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+class _IpSetPickerButton extends StatefulWidget {
+  const _IpSetPickerButton({required this.onChanged});
+
+  final Future<void> Function(String) onChanged;
+
+  @override
+  State<_IpSetPickerButton> createState() => _IpSetPickerButtonState();
+}
+
+class _IpSetPickerButtonState extends State<_IpSetPickerButton> {
+  Future<List<AtomicIpSet>>? _getAtomicIpSetsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final database = context.read<DatabaseProvider>().database;
+    _getAtomicIpSetsFuture = database.managers.atomicIpSets.get();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuAnchor(
+      menuChildren: [
+        FutureBuilder(
+          future: _getAtomicIpSetsFuture,
+          builder: (ctx, snapshot) {
+            if (!snapshot.hasData) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: snapshot.data!
+                  .map(
+                    (e) => MenuItemButton(
+                      onPressed: () => widget.onChanged(e.name),
+                      child: Text(localizedSetName(context, e.name)),
+                    ),
+                  )
+                  .toList(),
+            );
+          },
+        ),
+      ],
+      builder: (context, controller, child) => IconButton.filledTonal(
+        onPressed: () => controller.open(),
+        icon: const Icon(Icons.add_rounded, size: 18),
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+class _AppSetPickerButton extends StatefulWidget {
+  const _AppSetPickerButton({required this.onChanged});
+
+  final Future<void> Function(String) onChanged;
+
+  @override
+  State<_AppSetPickerButton> createState() => _AppSetPickerButtonState();
+}
+
+class _AppSetPickerButtonState extends State<_AppSetPickerButton> {
+  Future<List<AppSet>>? _getAppSetsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final database = context.read<DatabaseProvider>().database;
+    _getAppSetsFuture = database.managers.appSets.get();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _getAppSetsFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+        return MenuAnchor(
+          menuChildren: snapshot.data!
+              .map(
+                (e) => MenuItemButton(
+                  onPressed: () => widget.onChanged(e.name),
+                  child: Text(e.name),
+                ),
+              )
+              .toList(),
+          builder: (context, controller, child) => IconButton.filledTonal(
+            onPressed: () => controller.open(),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            padding: EdgeInsets.zero,
+          ),
+        );
+      },
     );
   }
 }
