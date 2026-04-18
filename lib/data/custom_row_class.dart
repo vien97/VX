@@ -750,11 +750,13 @@ class App extends DataClass implements Insertable<App> {
   final String appSetName;
   final AppId appId;
   final Uint8List? icon;
+  final String? name;
   const App({
     required this.id,
     required this.appSetName,
     required this.appId,
     this.icon,
+    this.name,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -769,6 +771,9 @@ class App extends DataClass implements Insertable<App> {
     if (!nullToAbsent || icon != null) {
       map['icon'] = Variable<Uint8List>(icon);
     }
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
     return map;
   }
 
@@ -778,6 +783,7 @@ class App extends DataClass implements Insertable<App> {
       appSetName: Value(appSetName),
       appId: Value(appId),
       icon: icon == null && nullToAbsent ? const Value.absent() : Value(icon),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
     );
   }
 
@@ -791,6 +797,7 @@ class App extends DataClass implements Insertable<App> {
       appSetName: serializer.fromJson<String>(json['appSetName']),
       appId: AppId.fromJson(json['appId']),
       icon: serializer.fromJson<Uint8List?>(json['icon']),
+      name: serializer.fromJson<String?>(json['name']),
     );
   }
   @override
@@ -801,6 +808,7 @@ class App extends DataClass implements Insertable<App> {
       'appSetName': serializer.toJson<String>(appSetName),
       'appId': appId.writeToJson(),
       'icon': serializer.toJson<Uint8List?>(icon),
+      'name': serializer.toJson<String?>(name),
     };
   }
 }

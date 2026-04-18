@@ -444,6 +444,7 @@ class _Shadowsocks2022ClientState extends State<_Shadowsocks2022Client> {
     _method = widget.config.method.isNotEmpty
         ? widget.config.method
         : _methods.first;
+        
   }
 
   @override

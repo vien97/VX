@@ -1240,6 +1240,7 @@ class MockDbHelper extends _i1.Mock implements _i20.DbHelper {
     List<String>? clashRuleUrls,
     bool? useBloomFilter,
     String? geoUrl,
+    bool? inverse,
   }) =>
       (super.noSuchMethod(
             Invocation.method(
@@ -1250,6 +1251,7 @@ class MockDbHelper extends _i1.Mock implements _i20.DbHelper {
                 #clashRuleUrls: clashRuleUrls,
                 #useBloomFilter: useBloomFilter,
                 #geoUrl: geoUrl,
+                #inverse: inverse,
               },
             ),
             returnValue: _i10.Future<void>.value(),
@@ -1522,9 +1524,14 @@ class MockDbHelper extends _i1.Mock implements _i20.DbHelper {
     String? appSetName,
     _i21.AppId? app, {
     _i12.Uint8List? icon,
+    String? name,
   }) =>
       (super.noSuchMethod(
-            Invocation.method(#addApp, [appSetName, app], {#icon: icon}),
+            Invocation.method(
+              #addApp,
+              [appSetName, app],
+              {#icon: icon, #name: name},
+            ),
             returnValue: _i10.Future<void>.value(),
             returnValueForMissingStub: _i10.Future<void>.value(),
           )

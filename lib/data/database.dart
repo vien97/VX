@@ -93,7 +93,7 @@ class AppDatabase extends _$AppDatabase {
   }) : super(executor ?? _openConnection(path, interceptor));
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   static QueryExecutor _openConnection(
     String path,
@@ -201,11 +201,14 @@ class AppDatabase extends _$AppDatabase {
       // runs after migration
       beforeOpen: (details) async {
         try {
-          if (!Platform.isAndroid) {
+          if (Platform.isAndroid) {
+            await customStatement('PRAGMA journal_mode = DELETE');
+            await customStatement('PRAGMA wal_checkpoint(TRUNCATE)');
+          } else {
             await customStatement('PRAGMA journal_mode = WAL');
           }
         } catch (e) {
-          reportError("beforeOpen journal_mode WAL", e);
+          reportError("beforeOpen journal_mode setup", e);
         }
         try {
           await customStatement('PRAGMA busy_timeout = 5000');
@@ -257,14 +260,18 @@ class AppDatabase extends _$AppDatabase {
         await _createUpdateTriggers();
       },
       onUpgrade: (m, from, to) async {
+        logger.d('onUpgrade from ${from} to ${to}');
         try {
           await customStatement('PRAGMA foreign_keys = OFF');
-
           await transaction(() async {
             await m.runMigrationSteps(
               from: from,
               to: to,
               steps: migrationSteps(
+                from12To13: (m, schema) async {
+                  logger.d('from12To13');
+                  await m.addColumn(schema.apps, schema.apps.name);
+                },
                 from11To12: (m, schema) async {
                   await m.addColumn(
                     schema.atomicDomainSets,
@@ -1328,6 +1335,7 @@ class Apps extends Table {
   )();
   BlobColumn get appId => blob().map(const AppIdConverter())();
   BlobColumn get icon => blob().nullable()();
+  TextColumn get name => text().nullable()();
 
   @override
   List<Set<Column<Object>>>? get uniqueKeys => [

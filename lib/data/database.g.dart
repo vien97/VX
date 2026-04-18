@@ -3310,8 +3310,17 @@ class $AppsTable extends Apps with TableInfo<$AppsTable, App> {
     type: DriftSqlType.blob,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
-  List<GeneratedColumn> get $columns => [id, appSetName, appId, icon];
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, appSetName, appId, icon, name];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3342,6 +3351,12 @@ class $AppsTable extends Apps with TableInfo<$AppsTable, App> {
       context.handle(
         _iconMeta,
         icon.isAcceptableOrUnknown(data['icon']!, _iconMeta),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
       );
     }
     return context;
@@ -3375,6 +3390,10 @@ class $AppsTable extends Apps with TableInfo<$AppsTable, App> {
         DriftSqlType.blob,
         data['${effectivePrefix}icon'],
       ),
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      ),
     );
   }
 
@@ -3392,17 +3411,20 @@ class AppsCompanion extends UpdateCompanion<App> {
   final Value<String> appSetName;
   final Value<AppId> appId;
   final Value<Uint8List?> icon;
+  final Value<String?> name;
   const AppsCompanion({
     this.id = const Value.absent(),
     this.appSetName = const Value.absent(),
     this.appId = const Value.absent(),
     this.icon = const Value.absent(),
+    this.name = const Value.absent(),
   });
   AppsCompanion.insert({
     this.id = const Value.absent(),
     required String appSetName,
     required AppId appId,
     this.icon = const Value.absent(),
+    this.name = const Value.absent(),
   }) : appSetName = Value(appSetName),
        appId = Value(appId);
   static Insertable<App> custom({
@@ -3410,12 +3432,14 @@ class AppsCompanion extends UpdateCompanion<App> {
     Expression<String>? appSetName,
     Expression<Uint8List>? appId,
     Expression<Uint8List>? icon,
+    Expression<String>? name,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (appSetName != null) 'app_set_name': appSetName,
       if (appId != null) 'app_id': appId,
       if (icon != null) 'icon': icon,
+      if (name != null) 'name': name,
     });
   }
 
@@ -3424,12 +3448,14 @@ class AppsCompanion extends UpdateCompanion<App> {
     Value<String>? appSetName,
     Value<AppId>? appId,
     Value<Uint8List?>? icon,
+    Value<String?>? name,
   }) {
     return AppsCompanion(
       id: id ?? this.id,
       appSetName: appSetName ?? this.appSetName,
       appId: appId ?? this.appId,
       icon: icon ?? this.icon,
+      name: name ?? this.name,
     );
   }
 
@@ -3450,6 +3476,9 @@ class AppsCompanion extends UpdateCompanion<App> {
     if (icon.present) {
       map['icon'] = Variable<Uint8List>(icon.value);
     }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
     return map;
   }
 
@@ -3459,7 +3488,8 @@ class AppsCompanion extends UpdateCompanion<App> {
           ..write('id: $id, ')
           ..write('appSetName: $appSetName, ')
           ..write('appId: $appId, ')
-          ..write('icon: $icon')
+          ..write('icon: $icon, ')
+          ..write('name: $name')
           ..write(')'))
         .toString();
   }
@@ -9886,6 +9916,7 @@ typedef $$AppsTableCreateCompanionBuilder =
       required String appSetName,
       required AppId appId,
       Value<Uint8List?> icon,
+      Value<String?> name,
     });
 typedef $$AppsTableUpdateCompanionBuilder =
     AppsCompanion Function({
@@ -9893,6 +9924,7 @@ typedef $$AppsTableUpdateCompanionBuilder =
       Value<String> appSetName,
       Value<AppId> appId,
       Value<Uint8List?> icon,
+      Value<String?> name,
     });
 
 final class $$AppsTableReferences
@@ -9938,6 +9970,11 @@ class $$AppsTableFilterComposer extends Composer<_$AppDatabase, $AppsTable> {
 
   ColumnFilters<Uint8List> get icon => $composableBuilder(
     column: $table.icon,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9988,6 +10025,11 @@ class $$AppsTableOrderingComposer extends Composer<_$AppDatabase, $AppsTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$AppSetsTableOrderingComposer get appSetName {
     final $$AppSetsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -10029,6 +10071,9 @@ class $$AppsTableAnnotationComposer
 
   GeneratedColumn<Uint8List> get icon =>
       $composableBuilder(column: $table.icon, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
 
   $$AppSetsTableAnnotationComposer get appSetName {
     final $$AppSetsTableAnnotationComposer composer = $composerBuilder(
@@ -10086,11 +10131,13 @@ class $$AppsTableTableManager
                 Value<String> appSetName = const Value.absent(),
                 Value<AppId> appId = const Value.absent(),
                 Value<Uint8List?> icon = const Value.absent(),
+                Value<String?> name = const Value.absent(),
               }) => AppsCompanion(
                 id: id,
                 appSetName: appSetName,
                 appId: appId,
                 icon: icon,
+                name: name,
               ),
           createCompanionCallback:
               ({
@@ -10098,11 +10145,13 @@ class $$AppsTableTableManager
                 required String appSetName,
                 required AppId appId,
                 Value<Uint8List?> icon = const Value.absent(),
+                Value<String?> name = const Value.absent(),
               }) => AppsCompanion.insert(
                 id: id,
                 appSetName: appSetName,
                 appId: appId,
                 icon: icon,
+                name: name,
               ),
           withReferenceMapper: (p0) => p0
               .map(
