@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -48,6 +49,9 @@ class _SystemProxySettingState extends State<SystemProxySetting> {
   }
 
   void _toggleSocksPort(String value) {
+    if (value.isEmpty) {
+      return;
+    }
     context.read<SharedPreferences>().setSocksPort(int.parse(value));
     setState(() {
       _socksPortController.text = value;
@@ -55,6 +59,9 @@ class _SystemProxySettingState extends State<SystemProxySetting> {
   }
 
   void _toggleHttpPort(String value) {
+    if (value.isEmpty) {
+      return;
+    }
     context.read<SharedPreferences>().setHttpPort(int.parse(value));
     setState(() {
       _httpPortController.text = value;
@@ -75,24 +82,28 @@ class _SystemProxySettingState extends State<SystemProxySetting> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(AppLocalizations.of(context)!.systemProxyPortSetting,
-              style: Theme.of(context).textTheme.bodyLarge),
+          Text(
+            AppLocalizations.of(context)!.systemProxyPortSetting,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
           const Gap(10),
           Row(
             children: [
               ChoiceChip(
-                  label: Text(AppLocalizations.of(context)!.randomPorts),
-                  selected: _dynamicSystemProxyPorts,
-                  onSelected: (_) {
-                    _toggleDynamicSystemProxyPorts(true);
-                  }),
+                label: Text(AppLocalizations.of(context)!.randomPorts),
+                selected: _dynamicSystemProxyPorts,
+                onSelected: (_) {
+                  _toggleDynamicSystemProxyPorts(true);
+                },
+              ),
               const Gap(10),
               ChoiceChip(
-                  label: Text(AppLocalizations.of(context)!.staticPorts),
-                  selected: !_dynamicSystemProxyPorts,
-                  onSelected: (_) {
-                    _toggleDynamicSystemProxyPorts(false);
-                  })
+                label: Text(AppLocalizations.of(context)!.staticPorts),
+                selected: !_dynamicSystemProxyPorts,
+                onSelected: (_) {
+                  _toggleDynamicSystemProxyPorts(false);
+                },
+              ),
             ],
           ),
           const Gap(10),
@@ -100,29 +111,48 @@ class _SystemProxySettingState extends State<SystemProxySetting> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'SOCKS',
-                      ),
-                      keyboardType: TextInputType.number,
-                      controller: _socksPortController,
-                      onChanged: _toggleSocksPort),
+                  child: TextFormField(
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return AppLocalizations.of(context)?.empty ??
+                            'Required';
+                      }
+                      return null;
+                    },
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'SOCKS',
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    controller: _socksPortController,
+                    onChanged: _toggleSocksPort,
+                  ),
                 ),
                 const Gap(10),
                 Expanded(
-                  child: TextField(
+                  child: TextFormField(
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       labelText: 'HTTP',
                     ),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     keyboardType: TextInputType.number,
                     controller: _httpPortController,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return AppLocalizations.of(context)?.empty ??
+                            'Required';
+                      }
+                      return null;
+                    },
                     onChanged: _toggleHttpPort,
                   ),
-                )
+                ),
               ],
-            )
+            ),
         ],
       ),
     );

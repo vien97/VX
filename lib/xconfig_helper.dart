@@ -20,23 +20,29 @@ import 'package:installed_apps/index.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tm/protos/common/geo/geo.pb.dart';
-import 'package:tm/protos/common/net/net.pb.dart';
-import 'package:tm/protos/protos/dispatcher.pb.dart';
-import 'package:tm/protos/protos/dns.pb.dart';
-import 'package:tm/protos/protos/geo.pb.dart';
-import 'package:tm/protos/protos/grpc_service.pb.dart';
-import 'package:tm/protos/protos/inbound.pb.dart';
-import 'package:tm/protos/protos/logger.pb.dart' as l;
-import 'package:tm/protos/protos/client.pb.dart' as core;
-import 'package:tm/protos/protos/proxy/freedom.pb.dart';
-import 'package:tm/protos/protos/proxy/http.pb.dart';
-import 'package:tm/protos/protos/proxy/socks.pb.dart';
-import 'package:tm/protos/protos/outbound.pb.dart' as o;
-import 'package:tm/protos/protos/policy.pb.dart';
-import 'package:tm/protos/protos/router.pb.dart';
-import 'package:tm/protos/protos/sysproxy.pb.dart';
-import 'package:tm/protos/protos/tun.pb.dart';
+import 'package:tm/protos/vx/common/geo/geo.pb.dart';
+import 'package:tm/protos/vx/common/net/net.pb.dart';
+import 'package:tm/protos/vx/dispatcher/dispatcher.pb.dart';
+import 'package:tm/protos/vx/transport/dlhelper.pb.dart';
+import 'package:tm/protos/vx/dns/dns.pb.dart';
+import 'package:tm/protos/vx/geo/geo.pb.dart';
+import 'package:tm/protos/vx/grpc/grpc_service.pb.dart';
+import 'package:tm/protos/vx/inbound/inbound.pb.dart';
+import 'package:tm/protos/vx/log/logger.pb.dart' as l;
+import 'package:tm/protos/vx/client.pb.dart' as core;
+import 'package:tm/protos/vx/proxy/freedom/freedom.pb.dart';
+import 'package:tm/protos/vx/proxy/http/http.pb.dart';
+import 'package:tm/protos/vx/proxy/socks/socks.pb.dart';
+import 'package:tm/protos/vx/outbound/outbound.pb.dart' as o;
+import 'package:tm/protos/vx/policy.pb.dart';
+import 'package:tm/protos/vx/router/router.pb.dart';
+import 'package:tm/protos/vx/sysproxy/sysproxy.pb.dart';
+import 'package:tm/protos/vx/transport/transport.pb.dart';
+import 'package:tm/protos/vx/dialerfactory/dialerfactory.pb.dart';
+import 'package:tm/protos/vx/tun/tun.pb.dart';
+import 'package:tm/protos/vx/subscription/subscription.pb.dart';
+import 'package:tm/protos/vx/fallbackmon/fallbackmon.pb.dart';
+import 'package:tm/protos/vx/grpc/grpc_server.pb.dart';
 import 'package:vx/app/control.dart';
 import 'package:vx/app/outbound/outbound_repo.dart';
 import 'package:vx/app/routing/default.dart';
@@ -53,17 +59,12 @@ import 'package:vx/utils/logger.dart';
 import 'package:vx/utils/path.dart';
 import 'package:vx/app/blocs/proxy_selector/proxy_selector_bloc.dart';
 import 'package:vx/common/file.dart';
+import 'package:flutter_common/util/net.dart';
 import 'package:vx/common/net.dart';
 import 'package:vx/utils/permission.dart';
 import 'package:vx/utils/wintun.dart';
 import 'package:vx/utils/xapi_client.dart';
 import 'package:protobuf/well_known_types/google/protobuf/any.pb.dart';
-
-final freedomHandlerConfig = o.HandlerConfig(
-    outbound: o.OutboundHandlerConfig(
-  tag: 'direct',
-  protocol: Any.pack(FreedomConfig()),
-));
 
 class ConfigException implements Exception {
   ConfigException(this.message);
@@ -81,13 +82,13 @@ class XConfigHelper {
     required GeoDataHelper geoDataHelper,
     required XApiClient xApiClient,
     required DatabaseProvider databaseProvider,
-  })  : _outboundRepo = outboundRepo,
-        _persistentStateRepo = psr,
-        _authBloc = authBloc,
-        _downloader = downloader,
-        _geoDataHelper = geoDataHelper,
-        _xApiClient = xApiClient,
-        _databaseProvider = databaseProvider;
+  }) : _outboundRepo = outboundRepo,
+       _persistentStateRepo = psr,
+       _authBloc = authBloc,
+       _downloader = downloader,
+       _geoDataHelper = geoDataHelper,
+       _xApiClient = xApiClient,
+       _databaseProvider = databaseProvider;
   // final _outboundHandlerGroupBox = store.box<OHTag>();
   final OutboundRepo _outboundRepo;
   final SharedPreferences _persistentStateRepo;
@@ -109,40 +110,51 @@ class XConfigHelper {
   //   }
   // }
 
-  Future<core.TmConfig> getConfig(
-      {Uint8List? certBytes, (String, int)? dbSecretAndPort}) async {
+  Future<core.TmConfig> getConfig({
+    Uint8List? certBytes,
+    (String, int)? dbSecretAndPort,
+  }) async {
     final inboundConfig = await _getInboundConfig();
     final dnsConfig = await _getDnsConfig();
     final (routerConfig, geoConfig) = await getRouterGeoConfig(dnsConfig);
 
     // TODO: I assume a server supports ipv4
     final config = core.TmConfig(
-        inboundManager: inboundConfig,
-        outbound: await _getOutboundConfig(routerConfig),
-        tun: await _getTunConfig(routerConfig),
-        wfp: await _getWfpConfig(),
-        dns: dnsConfig,
-        policy: _getPolicyConfig(),
-        router: routerConfig,
-        selectors: await getSelectorsConfig(routerConfig),
-        log: await _getLoggerConfig(),
-        geo: geoConfig,
-        grpc: await _getGrpcConfig(certBytes: certBytes),
-        dispatcher: _getDispatcherConfig(),
-        subscription: isPkg ? null : await _getSubscriptionConfig(),
-        dbPath: isPkg ? null : await getDbPath(_persistentStateRepo),
-        serviceSecret: dbSecretAndPort?.$1,
-        servicePort: dbSecretAndPort?.$2,
-        defaultNicMonitor: true,
-        hysteria2RejectQuic: _persistentStateRepo.rejectQuicHysteria,
-        sysProxy: _getSysProxyConfig(inboundConfig),
-        grpcService: GrpcServiceConfig(
-          updateLatency: _persistentStateRepo.pingMode == PingMode.Real,
-        ),
-        userLog: l.UserLoggerConfig(
-          enable: _persistentStateRepo.enableLog,
-          logAppId: _persistentStateRepo.showApp,
-        ));
+      inboundManager: inboundConfig,
+      outbound: await _getOutboundConfig(routerConfig),
+      tun: await _getTunConfig(routerConfig),
+      wfp: await _getWfpConfig(),
+      dns: dnsConfig,
+      policy: _getPolicyConfig(),
+      router: routerConfig,
+      selectors: await getSelectorsConfig(routerConfig),
+      log: await _getLoggerConfig(),
+      geo: geoConfig,
+      grpc: await _getGrpcConfig(certBytes: certBytes),
+      dispatcher: _getDispatcherConfig(),
+      subscription: isPkg ? null : await _getSubscriptionConfig(),
+      dbPath: isPkg ? null : await getDbPath(_persistentStateRepo),
+      serviceSecret: dbSecretAndPort?.$1,
+      servicePort: dbSecretAndPort?.$2,
+      defaultNicMonitor: true,
+      hysteria2RejectQuic: _persistentStateRepo.rejectQuicHysteria,
+      sysProxy: _getSysProxyConfig(inboundConfig),
+      grpcService: GrpcServiceConfig(
+        updateLatency: _persistentStateRepo.pingMode == PingMode.Real,
+      ),
+      fallbackMon: _persistentStateRepo.automaticallyAddFallbackDomain
+          ? FallbackMonConfig(domainSetName: 'Fallback')
+          : null,
+      userLog: l.UserLoggerConfig(
+        enable: _persistentStateRepo.enableLog,
+        logAppId: _persistentStateRepo.showApp,
+        logSessionEnd: _persistentStateRepo.showSessionOngoing,
+        logRealtimeUsage: _persistentStateRepo.showRealtimeUsage,
+      ),
+      dialerFactory: DialerFactoryConfig(
+        dialTimeout: _persistentStateRepo.globalDialTimeout,
+      ),
+    );
     // redirect std err
     if (!isProduction() ||
         _persistentStateRepo.shareLog ||
@@ -161,15 +173,43 @@ class XConfigHelper {
   }
 
   Future<o.OutboundConfig> _getOutboundConfig(RouterConfig routerConfig) async {
-    final config = o.OutboundConfig(handlers: [freedomHandlerConfig]);
+    final config = o.OutboundConfig(
+      handlers: [
+        o.HandlerConfig(
+          outbound: o.OutboundHandlerConfig(
+            tag: 'direct',
+            protocol: Any.pack(FreedomConfig()),
+            domainStrategy: o.DomainStrategy.Speed,
+            transport: TransportConfig(
+              socket: SocketConfig(
+                dialTimeout: _persistentStateRepo.directDialingTimeout,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
     for (final rule in routerConfig.rules) {
       if (rule.outboundTag.isNotEmpty &&
           rule.outboundTag != directHandlerTag &&
           rule.outboundTag != _dnsTag) {
-        final handler =
-            await _outboundRepo.getHandlerById(int.parse(rule.outboundTag));
+        final handler = await _outboundRepo.getHandlerById(
+          int.parse(rule.outboundTag),
+        );
         if (handler != null) {
           config.handlers.add(handler.toConfig());
+        }
+      }
+      for (final fallback in rule.fallbacks) {
+        if (fallback.outboundTag.isNotEmpty &&
+            fallback.outboundTag != directHandlerTag &&
+            fallback.outboundTag != _dnsTag) {
+          final handler = await _outboundRepo.getHandlerById(
+            int.parse(fallback.outboundTag),
+          );
+          if (handler != null) {
+            config.handlers.add(handler.toConfig());
+          }
         }
       }
     }
@@ -183,40 +223,43 @@ class XConfigHelper {
   /// returns the latest config, if isMacOS or isIOS store it in app group container.
   /// TODO: store using saveToPreferences
   /// should be called whenever config is changed
-  Future<core.TmConfig> getAndOrStoreConfig(
-      {Uint8List? certBytes, (String, int)? dbSecretAndPort}) async {
-    final config =
-        await getConfig(certBytes: certBytes, dbSecretAndPort: dbSecretAndPort);
+  Future<core.TmConfig> getAndOrStoreConfig({
+    Uint8List? certBytes,
+    (String, int)? dbSecretAndPort,
+  }) async {
+    final config = await getConfig(
+      certBytes: certBytes,
+      dbSecretAndPort: dbSecretAndPort,
+    );
 
     if (!isPkg) {
       final configBytes = config.writeToBuffer();
-      _configFileDir().then((dir) {
-        return atomicWriteToFile(dir, 'config', configBytes);
-      }).catchError((e) {
-        logger.e('storeConfig', error: e);
-      });
+      _configFileDir()
+          .then((dir) {
+            return atomicWriteToFile(dir, 'config', configBytes);
+          })
+          .catchError((e) {
+            logger.e('storeConfig', error: e);
+          });
     }
 
     return config;
   }
 
   DispatcherConfig _getDispatcherConfig() {
-    /* 
-     When there is possiblity that dst ip is not correct, such as in the cases of tun is disabled,
-     or fakeDns has just been turned off, sniffing should be enabled.
-    */
-    // final enableSniffing = !inboundSetting.enableTun;
     final config = DispatcherConfig(
-      fallbackToProxy: _persistentStateRepo.fallbackToProxy,
-      fallbackToDomain: _persistentStateRepo.fallbackRetryDomain,
       ipv6UseDomain: _persistentStateRepo.changeIpv6ToDomain,
       sniff: _persistentStateRepo.sniff,
+      fallbackTimeout: _persistentStateRepo.fallbackTimeout,
+      sessionStats: true,
+      handlerLinkStats: true,
+      handlerMeter: true,
     );
     return config;
   }
 
-  Future<core.SubscriptionConfig> _getSubscriptionConfig() async {
-    final config = core.SubscriptionConfig(
+  Future<SubscriptionConfig> _getSubscriptionConfig() async {
+    final config = SubscriptionConfig(
       interval: _persistentStateRepo.updateInterval,
       periodicUpdate: _persistentStateRepo.autoUpdate,
     );
@@ -267,14 +310,16 @@ class XConfigHelper {
           if (app.appSetName == directAppSetName &&
               app.appId.type == AppId_Type.Exact) {
             futures.add(
-                InstalledApps.isAppInstalled(app.appId.value).then((installed) {
-              if (installed != null && installed) {
-                blackListApps.add(app.appId.value);
-              } else {
-                logger.d(
-                    "App ${app.appId.value} is not installed, not adding to blacklist");
-              }
-            }));
+              InstalledApps.isAppInstalled(app.appId.value).then((installed) {
+                if (installed != null && installed) {
+                  blackListApps.add(app.appId.value);
+                } else {
+                  logger.d(
+                    "App ${app.appId.value} is not installed, not adding to blacklist",
+                  );
+                }
+              }),
+            );
           }
         }
         await Future.wait(futures);
@@ -282,25 +327,26 @@ class XConfigHelper {
     }
 
     return TunConfig(
-        tag: 'tun',
-        shouldBindDevice: true,
-        mode: Platform.isWindows || Platform.isAndroid || Platform.isLinux
-            ? Mode.MODE_SYSTEM
-            : Mode.MODE_GVISOR,
-        tun46Setting: _persistentStateRepo.tun46Setting,
-        rejectIpv6: _persistentStateRepo.rejectIpv6,
-        device: TunDeviceConfig(
-          name: tunName,
-          mtu: mtu,
-          dns4: [_persistentStateRepo.tunDns4],
-          cidr4: _persistentStateRepo.tunCidr4,
-          routes4: ['0.0.0.0/0'],
-          cidr6: _persistentStateRepo.tunCidr6,
-          dns6: [_persistentStateRepo.tunDns6],
-          routes6: ['::/0'],
-          path: await getWintunDir(),
-          blackListApps: blackListApps,
-        ));
+      tag: 'tun',
+      shouldBindDevice: true,
+      mode: Platform.isWindows || Platform.isAndroid || Platform.isLinux
+          ? Mode.MODE_SYSTEM
+          : Mode.MODE_GVISOR,
+      tun46Setting: _persistentStateRepo.tun46Setting,
+      rejectIpv6: _persistentStateRepo.rejectIpv6,
+      device: TunDeviceConfig(
+        name: tunName,
+        mtu: mtu,
+        dns4: [_persistentStateRepo.tunDns4],
+        cidr4: _persistentStateRepo.tunCidr4,
+        routes4: ['0.0.0.0/0'],
+        cidr6: _persistentStateRepo.tunCidr6,
+        dns6: [_persistentStateRepo.tunDns6],
+        routes6: ['::/0'],
+        path: await getWintunDir(),
+        blackListApps: blackListApps,
+      ),
+    );
   }
 
   Future<InboundManagerConfig> _getInboundConfig() async {
@@ -324,7 +370,7 @@ class XConfigHelper {
           port: httpPort,
           tag: 'http',
           protocol: Any.pack(HttpServerConfig()),
-        )
+        ),
       ]);
     }
     if (_persistentStateRepo.proxyShare) {
@@ -334,10 +380,13 @@ class XConfigHelper {
           port: _persistentStateRepo.proxyShareListenPort,
           tag: 'proxyShare',
           protocols: [
-            Any.pack(SocksServerConfig(
+            Any.pack(
+              SocksServerConfig(
                 address: _persistentStateRepo.socksUdpAssociateAddress,
-                udpEnabled: true)),
-            Any.pack(HttpServerConfig())
+                udpEnabled: true,
+              ),
+            ),
+            Any.pack(HttpServerConfig()),
           ],
         ),
       ]);
@@ -349,34 +398,19 @@ class XConfigHelper {
   static const _dnsTag = 'dns';
   static const _tunTag = 'tun';
 
-  final _dnsRule = RuleConfig(
-    ruleName: 'default-dns go dns handler',
-    inboundTags: [_tunTag],
-    dstCidrs: ['172.23.27.2/32', 'fc20::2/128'],
-    dstPortRanges: [PortRange(from: 53, to: 53)],
-    outboundTag: _dnsTag,
-  );
-  // reject dns over tls for default dns ns
-  final _dnsReject = RuleConfig(
-    ruleName: 'reject default dns over tls',
-    dstCidrs: ['172.23.27.2/32', 'fc20::2/128'],
-    dstPortRanges: [PortRange(from: 853, to: 853)],
-  );
-
   Future<SelectorsConfig> getSelectorsConfig(RouterConfig routerConfig) async {
     if (!_authBloc.state.pro) {
       assert(
-          _persistentStateRepo.proxySelectorMode == ProxySelectorMode.manual &&
-              _persistentStateRepo.proxySelectorManualMode ==
-                  ProxySelectorManualNodeSelectionMode.single &&
-              _persistentStateRepo.proxySelectorManualLandHandlers.isEmpty);
+        _persistentStateRepo.proxySelectorMode == ProxySelectorMode.manual &&
+            _persistentStateRepo.proxySelectorManualMode ==
+                ProxySelectorManualNodeSelectionMode.single &&
+            _persistentStateRepo.proxySelectorManualLandHandlers.isEmpty,
+      );
       final proxySelector = SelectorConfig(
         strategy: SelectorConfig_SelectingStrategy.ALL,
         tag: defaultProxySelectorTag,
         balanceStrategy: SelectorConfig_BalanceStrategy.RANDOM,
-        filter: SelectorConfig_Filter(
-          selected: true,
-        ),
+        filter: SelectorConfig_Filter(selected: true),
       );
       if ((await _outboundRepo.getHandlers(selected: true)).isEmpty) {
         snack(rootLocalizations()?.noSelectedNode);
@@ -385,35 +419,48 @@ class XConfigHelper {
     }
 
     final selectors = <SelectorConfig>[];
+
+    Future<void> addSelector(String selectorTag) async {
+      SelectorConfig? config;
+      // if the selector is the default proxy selector and the proxy selector mode is manual
+      if (selectorTag == defaultProxySelectorTag &&
+          _persistentStateRepo.proxySelectorMode == ProxySelectorMode.manual) {
+        config = _persistentStateRepo.manualSelectorConfig;
+        selectors.add(config);
+      } else {
+        config = await _databaseProvider.database.getSelectorConfig(
+          selectorTag,
+        );
+        if (config != null) {
+          selectors.add(config);
+        }
+      }
+      // check if all land handlers in the selector are available
+      if (config != null) {
+        final landHandlers = config.landHandlers;
+        for (final landHandler in landHandlers) {
+          final handler = await _outboundRepo.getHandlerById(
+            landHandler.toInt(),
+          );
+          if (handler == null) {
+            throw ConfigException(
+              '${rootLocalizations()?.selectorContainsDeletedLandHandler(config.toLocalString(rootNavigationKey.currentContext))}',
+            );
+          }
+        }
+      }
+    }
+
     for (final rule in routerConfig.rules) {
       // if any rule uses the selector and it has not been added to the selectors, add it
       if (rule.selectorTag.isNotEmpty &&
           !selectors.any((e) => e.tag == rule.selectorTag)) {
-        SelectorConfig? config;
-        // if the selector is the default proxy selector and the proxy selector mode is manual
-        if (rule.selectorTag == defaultProxySelectorTag &&
-            _persistentStateRepo.proxySelectorMode ==
-                ProxySelectorMode.manual) {
-          config = _persistentStateRepo.manualSelectorConfig;
-          selectors.add(config);
-        } else {
-          config = await _databaseProvider.database
-              .getSelectorConfig(rule.selectorTag);
-          if (config != null) {
-            selectors.add(config);
-          }
-        }
-        // check if all land handlers in the selector are available
-        if (config != null) {
-          final landHandlers = config.landHandlers;
-          for (final landHandler in landHandlers) {
-            final handler =
-                await _outboundRepo.getHandlerById(landHandler.toInt());
-            if (handler == null) {
-              throw ConfigException(
-                  '${rootLocalizations()?.selectorContainsDeletedLandHandler(config.toLocalString(rootNavigationKey.currentContext))}');
-            }
-          }
+        await addSelector(rule.selectorTag);
+      }
+      for (final fallback in rule.fallbacks) {
+        if (fallback.selectorTag.isNotEmpty &&
+            !selectors.any((e) => e.tag == fallback.selectorTag)) {
+          await addSelector(fallback.selectorTag);
         }
       }
     }
@@ -422,14 +469,8 @@ class XConfigHelper {
   }
 
   static final fakednsPools = [
-    FakeDnsServer_PoolConfig(
-      cidr: '198.18.0.0/15',
-      lruSize: 65535,
-    ),
-    FakeDnsServer_PoolConfig(
-      cidr: 'fc00::/18',
-      lruSize: 65535,
-    )
+    FakeDnsServer_PoolConfig(cidr: '198.18.0.0/15', lruSize: 65535),
+    FakeDnsServer_PoolConfig(cidr: 'fc00::/18', lruSize: 65535),
   ];
 
   /// When any domain of outbound tag is not resolved by the first two clients,
@@ -441,98 +482,55 @@ class XConfigHelper {
     late final DnsConfig config;
     config = DnsConfig(
       enableFakeDns: _persistentStateRepo.fakeDns,
-      records: await (_databaseProvider.database
-              .select(_databaseProvider.database.dnsRecords))
-          .get()
-          .then((value) => value.map((e) => e.dnsRecord).toList()),
+      records: await (_databaseProvider.database.select(
+        _databaseProvider.database.dnsRecords,
+      )).get().then((value) => value.map((e) => e.dnsRecord).toList()),
     );
     if (_persistentStateRepo.inboundMode == InboundMode.tun ||
         _persistentStateRepo.inboundMode == InboundMode.wfp) {
-      if (routeMode is DefaultRouteMode) {
-        // config.dnsServers.addAll([
-        //   DnsServerConfig(
-        //     name: XConfigHelper.dnsServerFake,
-        //     fakeDnsServer: FakeDnsServer(
-        //       poolConfigs: XConfigHelper.fakednsPools,
-        //     ),
-        //   ),
-        //   DnsServerConfig(
-        //     name: dnsServerProxy,
-        //     plainDnsServer: PlainDnsServer(
-        //       addresses: ['1.1.1.1:53'],
-        //     ),
-        //   ),
-        //   DnsServerConfig(
-        //     name: dnsServerDirect,
-        //     plainDnsServer: PlainDnsServer(
-        //         addresses: ['223.5.5.5:53', '1.1.1.1:53'], useDefaultDns: true),
-        //   )
-        // ]);
-        // config.dnsRules.addAll([
-        //   DnsRuleConfig(
-        //       dnsServerName: XConfigHelper.dnsServerFake,
-        //       includedTypes: [DnsType.DnsType_A, DnsType.DnsType_AAAA],
-        //       domainTags: [internalProxySetName]),
-        //   DnsRuleConfig(
-        //       domainTags: [internalProxySetName],
-        //       dnsServerName: XConfigHelper.dnsServerProxy),
-        //   DnsRuleConfig(dnsServerName: XConfigHelper.dnsServerDirect),
-        // ]);
-      } else {
-        final customRouteMode = await _databaseProvider
-            .database.managers.customRouteModes
-            .filter((e) => e.name.equals(routeMode))
-            .getSingle();
-        config.dnsRules.addAll(customRouteMode.dnsRules.rules);
-        for (final rule in customRouteMode.dnsRules.rules) {
-          // the dns server is not in the config, add it
-          if (!config.dnsServers.any((e) => e.name == rule.dnsServerName)) {
-            // if (rule.dnsServerName == XConfigHelper.dnsServerFake) {
-            //   config.dnsServers.add(DnsServerConfig(
-            //     name: XConfigHelper.dnsServerFake,
-            //     fakeDnsServer: FakeDnsServer(
-            //       poolConfigs: XConfigHelper.fakednsPools,
-            //     ),
-            //   ));
-            // } else if (rule.dnsServerName == XConfigHelper.dnsServerProxy) {
-            //   config.dnsServers.add(DnsServerConfig(
-            //     name: dnsServerProxy,
-            //     plainDnsServer: PlainDnsServer(
-            //       addresses: ['1.1.1.1:53'],
-            //     ),
-            //   ));
-            // } else if (rule.dnsServerName == XConfigHelper.dnsServerDirect) {
-            //   config.dnsServers.add(DnsServerConfig(
-            //     name: dnsServerDirect,
-            //     plainDnsServer: PlainDnsServer(
-            //       addresses: ['223.5.5.5:53', '1.1.1.1:53'],
-            //       useDefaultDns: true,
-            //     ),
-            //   ));
-            // } else {
-            final dnsServer = await _databaseProvider
-                .database.managers.dnsServers
-                .filter((e) => e.name.equals(rule.dnsServerName))
-                .getSingleOrNull();
-            if (dnsServer == null) {
-              throw ConfigException(
-                  'DNS server ${rule.dnsServerName} not found');
-            }
-            config.dnsServers.add(dnsServer.dnsServer);
-            // }
+      final customRouteMode = await _databaseProvider
+          .database
+          .managers
+          .customRouteModes
+          .filter((e) => e.name.equals(routeMode))
+          .getSingle();
+      config.dnsRules.addAll(customRouteMode.dnsRules.rules);
+      for (final rule in customRouteMode.dnsRules.rules) {
+        // the dns server is not in the config, add it
+        if (!config.dnsServers.any((e) => e.name == rule.dnsServerName)) {
+          final dnsServer = await _databaseProvider.database.managers.dnsServers
+              .filter((e) => e.name.equals(rule.dnsServerName))
+              .getSingleOrNull();
+          if (dnsServer == null) {
+            throw ConfigException('DNS server ${rule.dnsServerName} not found');
           }
+          config.dnsServers.add(dnsServer.dnsServer);
+        }
+      }
+      // internal dns servers
+      config.internalDnsServers.addAll(customRouteMode.internalDnsServers);
+      for (final server in customRouteMode.internalDnsServers) {
+        if (!config.dnsServers.any((e) => e.name == server)) {
+          final dnsServer = await _databaseProvider.database.managers.dnsServers
+              .filter((e) => e.name.equals(server))
+              .getSingleOrNull();
+          if (dnsServer == null) {
+            throw ConfigException('DNS server $server not found');
+          }
+          config.dnsServers.add(dnsServer.dnsServer);
         }
       }
     }
-    final dnsRecords = await (_databaseProvider.database
-            .select(_databaseProvider.database.dnsRecords))
-        .get();
+    final dnsRecords = await (_databaseProvider.database.select(
+      _databaseProvider.database.dnsRecords,
+    )).get();
     config.records.addAll(dnsRecords.map((e) => e.dnsRecord));
     return config;
   }
 
   Future<(RouterConfig, GeoConfig)> getRouterGeoConfig(
-      DnsConfig dnsConfig) async {
+    DnsConfig dnsConfig,
+  ) async {
     late final RouterConfig routerConfig;
     GreatDomainSetConfig? proxyDnsDomainSet;
     late final GeoConfig geoConfig;
@@ -572,21 +570,46 @@ class XConfigHelper {
     //   case String s:
     if (mode == null) {
       throw ConfigException(
-          rootLocalizations()?.pleaseSelectARoutingMode ?? '请选择一个路由模式');
+        rootLocalizations()?.pleaseSelectARoutingMode ?? '请选择一个路由模式',
+      );
     }
     if (!_authBloc.state.pro &&
         rootNavigationKey.currentContext != null &&
         !isDefaultRouteMode(mode, rootNavigationKey.currentContext!)) {
       throw ConfigException(
-          rootLocalizations()?.freeUserCannotUseCustomRoutingMode ??
-              '免费用户无法使用自定义路由模式。请选择一个默认路由模式。您可以在路由界面添加默认路由模式。');
+        rootLocalizations()?.freeUserCannotUseCustomRoutingMode ??
+            '免费用户无法使用自定义路由模式。请选择一个默认路由模式。您可以在路由界面添加默认路由模式。',
+      );
     }
     final ruleConfig = await _databaseProvider
-        .database.managers.customRouteModes
+        .database
+        .managers
+        .customRouteModes
         .filter((e) => e.name.equals(mode))
         .getSingle();
     routerConfig = RouterConfig(
-        rules: [_dnsRule, _dnsReject, ...ruleConfig.routerConfig.rules]);
+      rules: [
+        RuleConfig(
+          ruleName: 'default-dns go dns handler',
+          inboundTags: [_tunTag],
+          dstCidrs: [
+            '${_persistentStateRepo.tunDns4}/32',
+            '${_persistentStateRepo.tunDns6}/128',
+          ],
+          dstPortRanges: [PortRange(from: 53, to: 53)],
+          outboundTag: _dnsTag,
+        ),
+        RuleConfig(
+          ruleName: 'reject default dns over tls',
+          dstCidrs: [
+            '${_persistentStateRepo.tunDns4}/32',
+            '${_persistentStateRepo.tunDns6}/128',
+          ],
+          dstPortRanges: [PortRange(from: 853, to: 853)],
+        ),
+        ...ruleConfig.routerConfig.rules,
+      ],
+    );
     //   default:
     //     throw ConfigException('未知的路由模式 $mode');
     // }
@@ -619,21 +642,21 @@ class XConfigHelper {
 
     /// given a set name, return all atomic domain sets and great domain sets
     Future<(List<AtomicDomainSetConfig>?, List<GreatDomainSetConfig>?)>
-        getDomainSets(String setName, {bool notFoundThrow = true}) async {
+    getDomainSets(String setName, {bool notFoundThrow = true}) async {
       if (greatDomainSets.any((e) => e.name == setName) ||
           atomicDomainSets.any((e) => e.name == setName)) {
         return (null, null);
       }
-      final atomicSet = await ((_databaseProvider.database
-              .select(_databaseProvider.database.atomicDomainSets))
-            ..where((s) => s.name.equals(setName)))
-          .getSingleOrNull();
+      final atomicSet = await ((_databaseProvider.database.select(
+        _databaseProvider.database.atomicDomainSets,
+      ))..where((s) => s.name.equals(setName))).getSingleOrNull();
       if (atomicSet != null) {
         final geositeConfig = atomicSet.geositeConfig;
         if (geositeConfig != null && geositeConfig.codes.isNotEmpty) {
           if (atomicSet.geoUrl == null || atomicSet.geoUrl!.isEmpty) {
-            useStandartGeoSite = geositeConfig.codes
-                .any((e) => !simplifiedGeoSiteCodes.contains(e));
+            useStandartGeoSite = geositeConfig.codes.any(
+              (e) => !simplifiedGeoSiteCodes.contains(e),
+            );
             if (useStandartGeoSite) {
               geositeConfig.filepath = await getGeositePath();
             } else {
@@ -647,32 +670,34 @@ class XConfigHelper {
         final config = AtomicDomainSetConfig(
           name: setName,
           geosite: geositeConfig,
-          useBloomFilter: atomicSet.useBloomFilter,
+          inverse: atomicSet.inverse,
+          useBloomFilter: atomicSet.useBloomFilter && Platform.isIOS,
         );
         for (final url in atomicSet.clashRuleUrls ?? []) {
           clashUrlsSet.add(url);
           config.clashFiles.add(await getClashRulesPath(url));
         }
-        final domains = await (_databaseProvider.database
-                .select(_databaseProvider.database.geoDomains)
-              ..where((t) => t.domainSetName.equals(setName)))
-            .get();
+        final domains = await (_databaseProvider.database.select(
+          _databaseProvider.database.geoDomains,
+        )..where((t) => t.domainSetName.equals(setName))).get();
         config.domains.addAll(domains.map((e) => e.geoDomain));
         return ([config], <GreatDomainSetConfig>[]);
       }
       // great domain set
       final retAtomic = <AtomicDomainSetConfig>[];
       final retGreat = <GreatDomainSetConfig>[];
-      final greatSet = await ((_databaseProvider.database
-              .select(_databaseProvider.database.greatDomainSets))
-            ..where(
-                (s) => s.name.equals(setName) | s.oppositeName.equals(setName)))
-          .getSingleOrNull();
+      final greatSet =
+          await ((_databaseProvider.database.select(
+                _databaseProvider.database.greatDomainSets,
+              ))..where(
+                (s) => s.name.equals(setName) | s.oppositeName.equals(setName),
+              ))
+              .getSingleOrNull();
       if (greatSet != null) {
         retGreat.add(greatSet.set);
         for (final setName in [
           ...greatSet.set.inNames,
-          ...greatSet.set.exNames
+          ...greatSet.set.exNames,
         ]) {
           final (atomic, great) = await getDomainSets(setName);
           retAtomic.addAll(atomic ?? []);
@@ -687,26 +712,32 @@ class XConfigHelper {
       }
     }
 
-    Future<void> prepareDomainSet(String setName,
-        {bool notFoundThrow = true}) async {
-      final (atomic, great) =
-          await getDomainSets(setName, notFoundThrow: notFoundThrow);
+    Future<void> prepareDomainSet(
+      String setName, {
+      bool notFoundThrow = true,
+    }) async {
+      final (atomic, great) = await getDomainSets(
+        setName,
+        notFoundThrow: notFoundThrow,
+      );
       atomicDomainSets.addAll(atomic ?? []);
       greatDomainSets.addAll(great ?? []);
     }
 
-    Future<void> addAtomicIpSet(String setName,
-        {bool notFoundThrow = true}) async {
-      final atomicSet = await ((_databaseProvider.database
-              .select(_databaseProvider.database.atomicIpSets))
-            ..where((s) => s.name.equals(setName)))
-          .getSingleOrNull();
+    Future<void> addAtomicIpSet(
+      String setName, {
+      bool notFoundThrow = true,
+    }) async {
+      final atomicSet = await ((_databaseProvider.database.select(
+        _databaseProvider.database.atomicIpSets,
+      ))..where((s) => s.name.equals(setName))).getSingleOrNull();
       if (atomicSet != null) {
         final geoipConfig = atomicSet.geoIpConfig;
         if (geoipConfig != null && geoipConfig.codes.isNotEmpty) {
           if (atomicSet.geoUrl == null || atomicSet.geoUrl!.isEmpty) {
-            useStandartGeoIP =
-                geoipConfig.codes.any((e) => !simplifiedGeoIpCodes.contains(e));
+            useStandartGeoIP = geoipConfig.codes.any(
+              (e) => !simplifiedGeoIpCodes.contains(e),
+            );
             if (useStandartGeoIP) {
               geoipConfig.filepath = await getGeoIPPath();
             } else {
@@ -727,10 +758,9 @@ class XConfigHelper {
           config.clashFiles.add(await getClashRulesPath(url));
         }
 
-        final cidrs = await (_databaseProvider.database
-                .select(_databaseProvider.database.cidrs)
-              ..where((t) => t.ipSetName.equals(setName)))
-            .get();
+        final cidrs = await (_databaseProvider.database.select(
+          _databaseProvider.database.cidrs,
+        )..where((t) => t.ipSetName.equals(setName))).get();
         config.cidrs.addAll(cidrs.map((e) => e.cidr));
         atomicIpSets.add(config);
       } else {
@@ -741,21 +771,27 @@ class XConfigHelper {
       }
     }
 
-    Future<void> prepareIpSet(String dstIpTag,
-        {bool notFoundThrow = true}) async {
+    Future<void> prepareIpSet(
+      String dstIpTag, {
+      bool notFoundThrow = true,
+    }) async {
       if (greatIpSets.any((e) => e.name == dstIpTag) ||
           atomicIpSets.any((e) => e.name == dstIpTag)) {
         return;
       }
-      final greatSet = await ((_databaseProvider.database
-              .select(_databaseProvider.database.greatIpSets))
-            ..where((s) => s.name.equals(dstIpTag)))
-          .getSingleOrNull();
+      final greatSet =
+          await ((_databaseProvider.database.select(
+                _databaseProvider.database.greatIpSets,
+              ))..where(
+                (s) =>
+                    s.name.equals(dstIpTag) | s.oppositeName.equals(dstIpTag),
+              ))
+              .getSingleOrNull();
       if (greatSet != null) {
         greatIpSets.add(greatSet.greatIpSetConfig);
         for (final setName in [
           ...greatSet.greatIpSetConfig.inNames,
-          ...greatSet.greatIpSetConfig.exNames
+          ...greatSet.greatIpSetConfig.exNames,
         ]) {
           await addAtomicIpSet(setName);
         }
@@ -764,27 +800,29 @@ class XConfigHelper {
       }
     }
 
-    Future<void> prepareAppSet(String appTag,
-        {bool notFoundThrow = true}) async {
+    Future<void> prepareAppSet(
+      String appTag, {
+      bool notFoundThrow = true,
+    }) async {
       if (appSets.any((e) => e.name == appTag)) {
         return;
       }
-      final appSet = await ((_databaseProvider.database
-              .select(_databaseProvider.database.appSets))
-            ..where((s) => s.name.equals(appTag)))
-          .getSingleOrNull();
+      final appSet = await ((_databaseProvider.database.select(
+        _databaseProvider.database.appSets,
+      ))..where((s) => s.name.equals(appTag))).getSingleOrNull();
       if (appSet == null) {
         if (notFoundThrow) {
           throw ConfigException('App set $appTag not found');
         }
         return;
       }
-      final apps = await (_databaseProvider.database
-              .select(_databaseProvider.database.apps)
-            ..where((s) => s.appSetName.equals(appTag)))
-          .get();
-      final appSetConfig =
-          AppSetConfig(name: appTag, appIds: apps.map((e) => e.appId));
+      final apps = await (_databaseProvider.database.select(
+        _databaseProvider.database.apps,
+      )..where((s) => s.appSetName.equals(appTag))).get();
+      final appSetConfig = AppSetConfig(
+        name: appTag,
+        appIds: apps.map((e) => e.appId),
+      );
       for (final url in appSet.clashRuleUrls ?? []) {
         clashUrlsSet.add(url);
         appSetConfig.clashFiles.add(await getClashRulesPath(url));
@@ -801,6 +839,14 @@ class XConfigHelper {
       }
       for (final dstIpTag in rule.allTags) {
         await prepareIpSet(dstIpTag, notFoundThrow: false);
+      }
+      for (final fallback in rule.fallbacks) {
+        for (final dstIpTag in fallback.dstIpTags) {
+          await prepareIpSet(dstIpTag);
+        }
+        for (final domainTag in fallback.domainTags) {
+          await prepareDomainSet(domainTag);
+        }
       }
       // domain tags
       for (final domainTag in rule.domainTags) {
@@ -822,6 +868,12 @@ class XConfigHelper {
     for (final dnsRule in dnsConfig.dnsRules) {
       for (final domainTag in dnsRule.domainTags) {
         await prepareDomainSet(domainTag);
+      }
+    }
+    // dns servers
+    for (final dnsServer in dnsConfig.dnsServers) {
+      for (final ipTag in dnsServer.ipTags) {
+        await prepareIpSet(ipTag);
       }
     }
 
@@ -904,26 +956,22 @@ class XConfigHelper {
 
     // outbound domain and outbound ip should go direct
     return (
-      AtomicDomainSetConfig(
-        name: node,
-        domains: domains,
-      ),
-      AtomicIPSetConfig(
-        name: node,
-        cidrs: cidrs,
-      )
+      AtomicDomainSetConfig(name: node, domains: domains),
+      AtomicIPSetConfig(name: node, cidrs: cidrs),
     );
   }
 
   /// TODO: optimize
   static Future<void> pkgConvertGeoConfig(
-      XApiClient xApiClient, GeoConfig geoConfig) async {
+    XApiClient xApiClient,
+    GeoConfig geoConfig,
+  ) async {
     // final futures = <Future>[];
     for (final atomicDomainSet in geoConfig.atomicDomainSets) {
       if (atomicDomainSet.hasGeosite()) {
-        await xApiClient
-            .parseGeositeConfig(atomicDomainSet.geosite)
-            .then((domains) {
+        await xApiClient.parseGeositeConfig(atomicDomainSet.geosite).then((
+          domains,
+        ) {
           atomicDomainSet.clearGeosite();
           atomicDomainSet.domains.addAll(domains);
         });
@@ -933,10 +981,11 @@ class XConfigHelper {
         await xApiClient
             .parseClashRuleFile(File(clashFilePath).readAsBytesSync())
             .then((result) {
-          atomicDomainSet.domains.addAll(result.domains);
-        });
+              atomicDomainSet.domains.addAll(result.domains);
+            });
         // futures.add();
       }
+      atomicDomainSet.clashFiles.clear();
     }
     for (final atomicIpSet in geoConfig.atomicIpSets) {
       if (atomicIpSet.hasGeoip()) {
@@ -950,20 +999,22 @@ class XConfigHelper {
         await xApiClient
             .parseClashRuleFile(File(clashFilePath).readAsBytesSync())
             .then((result) {
-          atomicIpSet.cidrs.addAll(result.cidrs);
-        });
+              atomicIpSet.cidrs.addAll(result.cidrs);
+            });
         // futures.add();
       }
+      atomicIpSet.clashFiles.clear();
     }
     for (final appSet in geoConfig.appSets) {
       for (final clashFilePath in appSet.clashFiles) {
         await xApiClient
             .parseClashRuleFile(File(clashFilePath).readAsBytesSync())
             .then((result) {
-          appSet.appIds.addAll(result.appIds);
-        });
+              appSet.appIds.addAll(result.appIds);
+            });
         // futures.add();
       }
+      appSet.clashFiles.clear();
     }
     // await Future.wait(futures);
   }
@@ -1139,7 +1190,13 @@ class XConfigHelper {
   // }
 
   PolicyConfig _getPolicyConfig() {
-    final c = PolicyConfig(sessionStats: true, outboundStats: true);
+    final c = PolicyConfig(
+      handshakeTimeout: _persistentStateRepo.policyHandshakeTimeout,
+      connectionIdleTimeout: _persistentStateRepo.policyConnectionIdleTimeout,
+      udpIdleTimeout: _persistentStateRepo.policyUdpIdleTimeout,
+      upLinkOnlyTimeout: _persistentStateRepo.policyUpLinkOnlyTimeout,
+      downLinkOnlyTimeout: _persistentStateRepo.policyDownLinkOnlyTimeout,
+    );
     return c;
   }
 
@@ -1151,7 +1208,10 @@ class XConfigHelper {
       logLevel = l.Level.DISABLED;
     }
     return l.LoggerConfig(
-        consoleWriter: true, showCaller: true, logLevel: logLevel);
+      consoleWriter: true,
+      showCaller: true,
+      logLevel: logLevel,
+    );
   }
 
   SysProxyConfig? _getSysProxyConfig(InboundManagerConfig inboundConfig) {
@@ -1165,21 +1225,22 @@ class XConfigHelper {
     }
     return SysProxyConfig(
       httpProxyAddress: "127.0.0.1",
-      httpProxyPort:
-          inboundConfig.handlers.firstWhere((e) => e.tag == 'http').port,
+      httpProxyPort: inboundConfig.handlers
+          .firstWhere((e) => e.tag == 'http')
+          .port,
       socksProxyAddress: "127.0.0.1",
-      socksProxyPort:
-          inboundConfig.handlers.firstWhere((e) => e.tag == 'socks').port,
+      socksProxyPort: inboundConfig.handlers
+          .firstWhere((e) => e.tag == 'socks')
+          .port,
     );
   }
 
-  Future<core.GrpcConfig> _getGrpcConfig({Uint8List? certBytes}) async {
+  Future<GrpcConfig> _getGrpcConfig({Uint8List? certBytes}) async {
     if (useTcpForGrpc) {
       final p = await getUnusedPort();
-      return core.GrpcConfig(
-          address: '127.0.0.1', port: p, clientCert: certBytes);
+      return GrpcConfig(address: '127.0.0.1', port: p, clientCert: certBytes);
     }
-    final config = core.GrpcConfig(address: await grpcListenAddrUnix());
+    final config = GrpcConfig(address: await grpcListenAddrUnix());
     if (Platform.isLinux) {
       final uid = await userId();
       final gid = await groupId();

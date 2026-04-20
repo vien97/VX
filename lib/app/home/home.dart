@@ -14,13 +14,20 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:math';
+import 'package:ads/ad.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -38,13 +45,12 @@ import 'package:vx/app/outbound/subscription_page.dart';
 import 'package:vx/app/routing/default.dart';
 import 'package:vx/app/routing/repo.dart';
 import 'package:vx/app/blocs/proxy_selector/proxy_selector_bloc.dart';
-import 'package:vx/app/home/home_widget_visibility.dart';
 import 'package:vx/app/x_controller.dart';
 import 'package:vx/auth/auth_bloc.dart';
 import 'package:vx/common/circuler_buffer.dart';
 import 'package:vx/common/common.dart';
 import 'package:vx/common/extension.dart';
-import 'package:vx/common/net.dart';
+import 'package:flutter_common/util/net.dart';
 import 'package:vx/l10n/app_localizations.dart';
 import 'package:vx/pref_helper.dart';
 import 'package:vx/theme.dart';
@@ -59,21 +65,55 @@ import 'package:vx/widgets/circular_progress_indicator.dart';
 import 'package:vx/widgets/home_card.dart';
 import 'package:tm/protos/app/api/api.pb.dart' as api_pb;
 import 'package:tm/tm.dart';
+import 'package:vx/widgets/pro_icon.dart';
 
 part 'realtime_speed.dart';
 part 'route.dart';
 part 'active_nodes.dart';
 part 'proxy_selector.dart';
+part 'home0.dart';
+part 'home_customize.dart';
+part 'home_standard.dart';
+part 'home_edit.dart';
+part 'subscription.dart';
+
+class HomePageCubit extends Cubit<bool> {
+  HomePageCubit(this._prefs) : super(_prefs.useCustomizableHomePage);
+
+  final SharedPreferences _prefs;
+
+  void setUseCustomizableHomePage(bool value) {
+    emit(value);
+    _prefs.setUseCustomizableHomePage(value);
+  }
+}
+
+/// Root home page that chooses between standard and customizable layouts.
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPro = context.select<AuthBloc, bool>((bloc) => bloc.state.pro);
+    final useCustom = isPro && context.watch<HomePageCubit>().state;
+    if (useCustom) {
+      return const CustomizableHomePage();
+    }
+    return const StandardHomePage();
+  }
+}
 
 /// Identifiers for home sections that the user can show/hide.
 enum HomeWidgetId {
-  stats('stats'),
+  upload('upload'),
+  download('download'),
+  memory('memory'),
+  connections('connections'),
   nodesHelper('nodesHelper'),
   route('route'),
   proxySelector('proxySelector'),
   inbound('inbound'),
   subscription('subscription'),
-  promotion('promotion'),
   nodes('nodes');
 
   const HomeWidgetId(this.id);
@@ -85,338 +125,61 @@ enum HomeWidgetId {
     }
     return null;
   }
-}
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final visibility = context.watch<HomeWidgetVisibilityNotifier>();
-    final hidden = visibility.hiddenIds;
-
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Column(
-        children: [
-          if (!hidden.contains(HomeWidgetId.stats.id))
-            ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300),
-                child: const Stats()),
-          if (!hidden.contains(HomeWidgetId.stats.id)) const Gap(10),
-          Expanded(
-            child: Builder(builder: (ctx) {
-              final hasActiveNodes =
-                  ctx.watch<RealtimeSpeedNotifier>().nodeInfos.isNotEmpty;
-              final mode = ctx.select<ProxySelectorBloc, ProxySelectorMode>(
-                  (b) => b.state.proxySelectorMode);
-              final size = MediaQuery.of(context).size;
-              if (size.isCompact) {
-                return ListView(
-                  children: [
-                    if (hasActiveNodes &&
-                        !hidden.contains(HomeWidgetId.nodes.id))
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxHeight: 310),
-                            child: const ActiveNodes()),
-                      ),
-                    if (!hasActiveNodes &&
-                        mode == ProxySelectorMode.manual &&
-                        !hidden.contains(HomeWidgetId.nodes.id))
-                      const CurrentNodes(),
-                    if (mode == ProxySelectorMode.manual &&
-                        !hidden.contains(HomeWidgetId.nodesHelper.id))
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxHeight: 284),
-                            child: const NodesHelper()),
-                      ),
-                    if (!hidden.contains(HomeWidgetId.route.id)) const _Route(),
-                    if (!hidden.contains(HomeWidgetId.route.id)) const Gap(10),
-                    if (!hidden.contains(HomeWidgetId.proxySelector.id))
-                      const ProxySelector(home: true),
-                    if (desktopPlatforms &&
-                        !hidden.contains(HomeWidgetId.inbound.id))
-                      const Padding(
-                        padding: EdgeInsets.only(top: 10),
-                        child: _Inbound(),
-                      ),
-                    if (!hidden.contains(HomeWidgetId.subscription.id))
-                      const Padding(
-                        padding: EdgeInsets.only(top: 10),
-                        child: _Subscription(),
-                      ),
-                    if (!hidden.contains(HomeWidgetId.promotion.id))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: BlocBuilder<AuthBloc, AuthState>(
-                            builder: (context, state) {
-                          if (state.pro) {
-                            return const SizedBox.shrink();
-                          }
-                          return const Promotion();
-                        }),
-                      ),
-                    const Gap(60),
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: LayoutBuilder(builder: (ctx, c) {
-                    return ScrollConfiguration(
-                      behavior: ScrollConfiguration.of(context)
-                          .copyWith(scrollbars: false),
-                      child: ListView(
-                        children: [
-                          if (!hidden.contains(HomeWidgetId.route.id))
-                            const _Route(),
-                          if (!hidden.contains(HomeWidgetId.route.id))
-                            const Gap(10),
-                          if (!hidden.contains(HomeWidgetId.proxySelector.id))
-                            const ProxySelector(home: true),
-                          if (desktopPlatforms &&
-                              !hidden.contains(HomeWidgetId.inbound.id))
-                            const Padding(
-                              padding: EdgeInsets.only(top: 8.0),
-                              child: _Inbound(),
-                            ),
-                          if (!hidden.contains(HomeWidgetId.subscription.id))
-                            const Padding(
-                              padding: EdgeInsets.only(top: 10),
-                              child: _Subscription(),
-                            ),
-                          if (!hidden.contains(HomeWidgetId.promotion.id))
-                            BlocBuilder<AuthBloc, AuthState>(
-                                builder: (context, state) {
-                              if (state.pro) {
-                                return const SizedBox.shrink();
-                              }
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 10),
-                                child: ConstrainedBox(
-                                    constraints:
-                                        BoxConstraints(maxHeight: c.maxHeight),
-                                    child: Promotion(maxHeight: c.maxHeight)),
-                              );
-                            })
-                        ],
-                      ),
-                    );
-                  })),
-                  const Gap(10),
-                  // if (!hidden.contains(HomeWidgetId.nodes.id) ||
-                  //     !hidden.contains(HomeWidgetId.nodesHelper.id))
-                  Expanded(
-                      child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (!hidden.contains(HomeWidgetId.nodes.id))
-                        const Nodes(),
-                      if (!hidden.contains(HomeWidgetId.nodesHelper.id))
-                        Expanded(
-                            child: Align(
-                                alignment: Alignment.topCenter,
-                                child: ConstrainedBox(
-                                    constraints:
-                                        const BoxConstraints(maxHeight: 613),
-                                    child: const NodesHelper())))
-                    ],
-                  ))
-                ],
-              );
-            }),
-          )
-        ],
-      ),
-    );
-  }
-}
-
-class _Subscription extends StatefulWidget {
-  const _Subscription();
-
-  @override
-  State<_Subscription> createState() => _SubscriptionState();
-}
-
-class _SubscriptionState extends State<_Subscription> {
-  Subscription? subscription;
-  StreamSubscription<List<MySubscription>>? _subscriptionStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _subscriptionStream =
-        context.read<OutboundRepo>().getStreamOfSubs(limit: 1).listen((value) {
-      if (mounted) {
-        setState(() {
-          subscription = value.firstOrNull;
-        });
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (subscription == null) {
-      return const SizedBox();
+  String label(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (this) {
+      case HomeWidgetId.upload:
+        return l10n.upload;
+      case HomeWidgetId.download:
+        return l10n.download;
+      case HomeWidgetId.memory:
+        return l10n.memory;
+      case HomeWidgetId.connections:
+        return l10n.connections;
+      case HomeWidgetId.nodesHelper:
+        return l10n.homeWidgetNodesHelper;
+      case HomeWidgetId.route:
+        return l10n.routing;
+      case HomeWidgetId.proxySelector:
+        return l10n.nodeSelection;
+      case HomeWidgetId.inbound:
+        return l10n.inbound;
+      case HomeWidgetId.subscription:
+        return l10n.subscription;
+      case HomeWidgetId.nodes:
+        return l10n.homeWidgetNodes;
     }
+  }
 
-    final parsedData = SubscriptionData.parse(subscription!.description);
-    final hasUpdateError =
-        subscription!.lastSuccessUpdate != subscription!.lastUpdate;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    // Check if subscription is expiring soon (within 7 days)
-    final isExpiringSoon = parsedData?.expirationDate != null &&
-        parsedData!.expirationDate!.difference(DateTime.now()).inDays <= 7 &&
-        parsedData.expirationDate!.isAfter(DateTime.now());
-
-    // Check if expired
-    final isExpired = parsedData?.expirationDate != null &&
-        parsedData!.expirationDate!.isBefore(DateTime.now());
-
-    final visibility = context.read<HomeWidgetVisibilityNotifier>();
-    return SizedBox(
-      height: 120,
-      child: GestureDetector(
-        onTap: () {
-          context
-              .read<SubscriptionBloc>()
-              .add(UpdateSubscriptionEvent(subscription!));
-        },
-        child: HomeCard(
-            title: subscription!.name,
-            icon: Icons.subscriptions_rounded,
-            onHide: () => visibility.hide(HomeWidgetId.subscription.id),
-            button: BlocBuilder<SubscriptionBloc, SubscriptionState>(
-                builder: (ctx, satte) {
-              return satte.updatingSubs.contains(subscription!.id)
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Icon(Icons.refresh_rounded);
-            }),
-            child: Expanded(
-              child: Column(
-                children: [
-                  const Spacer(),
-                  // Show parsed data if available
-                  if (parsedData?.expirationDate != null ||
-                      parsedData?.remainingData != null) ...[
-                    // Data usage section
-                    if (parsedData?.remainingData != null) ...[
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.data_usage_rounded,
-                            size: 16,
-                            color: colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            parsedData!.totalData != null
-                                ? '${parsedData.remainingData} / ${parsedData.totalData}'
-                                : parsedData.remainingData!,
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: colorScheme.onSurface,
-                                    ),
-                          ),
-                          const Spacer(),
-                          if (parsedData.expirationDate != null)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isExpired
-                                      ? Icons.error
-                                      : isExpiringSoon
-                                          ? Icons.warning_amber_rounded
-                                          : Icons.calendar_month,
-                                  size: 16,
-                                  color: isExpired
-                                      ? colorScheme.error
-                                      : colorScheme.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  DateFormat('yyyy-MM-dd')
-                                      .format(parsedData.expirationDate!),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: colorScheme.onSurface,
-                                      ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ],
-                  ]
-                  // Show description if no parsed data available
-                  else if (subscription!.description.isNotEmpty) ...[
-                    AutoSizeText(
-                      subscription!.description,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                      maxLines: 1,
-                      minFontSize: 10,
-                    ),
-                  ],
-                  // Push content to bottom
-                  const Spacer(),
-                  Row(
-                    children: [
-                      Icon(
-                        hasUpdateError ? Icons.error_outline : Icons.schedule,
-                        size: 12,
-                        color: hasUpdateError
-                            ? colorScheme.error
-                            : colorScheme.onSurfaceVariant.withOpacity(0.7),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          hasUpdateError
-                              ? AppLocalizations.of(context)!.failure
-                              : '${AppLocalizations.of(context)!.updatedAt} ${DateFormat(
-                                  'MM-dd HH:mm',
-                                  Localizations.localeOf(context).toString(),
-                                ).format(DateTime.fromMillisecondsSinceEpoch(subscription!.lastSuccessUpdate))}',
-                          style:
-                              Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    fontSize: 10,
-                                    color: hasUpdateError
-                                        ? colorScheme.error
-                                        : colorScheme.onSurfaceVariant
-                                            .withOpacity(0.7),
-                                  ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            )),
-      ),
-    );
+  Widget buildWidget(BuildContext context, HomeLayoutPreset preset) {
+    switch (this) {
+      case HomeWidgetId.upload:
+        return const RealtimeSpeed(isUpload: true);
+      case HomeWidgetId.download:
+        return const RealtimeSpeed(isUpload: false);
+      case HomeWidgetId.memory:
+        return const MemoryStats();
+      case HomeWidgetId.connections:
+        return const ConnectionsStats();
+      case HomeWidgetId.nodesHelper:
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: preset == HomeLayoutPreset.compact ? 284 : 614,
+          ),
+          child: const NodesHelper(),
+        );
+      case HomeWidgetId.route:
+        return const _Route();
+      case HomeWidgetId.proxySelector:
+        return const ProxySelector(home: true);
+      case HomeWidgetId.inbound:
+        return const _Inbound();
+      case HomeWidgetId.subscription:
+        return const _Subscription();
+      case HomeWidgetId.nodes:
+        return const Nodes();
+    }
   }
 }
 
@@ -426,12 +189,11 @@ class _Inbound extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disableTun = Platform.isWindows && !isRunningAsAdmin && isStore;
-    final visibility = context.read<HomeWidgetVisibilityNotifier>();
     return HomeCard(
-        title: AppLocalizations.of(context)!.inbound,
-        icon: Icons.keyboard_double_arrow_right_rounded,
-        onHide: () => visibility.hide(HomeWidgetId.inbound.id),
-        child: BlocBuilder<InboundCubit, InboundMode>(builder: (ctx, mode) {
+      title: AppLocalizations.of(context)!.inbound,
+      icon: Icons.keyboard_double_arrow_right_rounded,
+      child: BlocBuilder<InboundCubit, InboundMode>(
+        builder: (ctx, mode) {
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,8 +208,8 @@ class _Inbound extends StatelessWidget {
                     onSelected: disableTun
                         ? null
                         : (value) => context
-                            .read<InboundCubit>()
-                            .setInboundMode(InboundMode.tun),
+                              .read<InboundCubit>()
+                              .setInboundMode(InboundMode.tun),
                   ),
                   ChoiceChip(
                     label: Text(InboundMode.systemProxy.toLocalString(context)),
@@ -461,14 +223,17 @@ class _Inbound extends StatelessWidget {
               if (disableTun)
                 Padding(
                   padding: const EdgeInsets.only(top: 5),
-                  child: Text(AppLocalizations.of(context)!.tunNeedAdmin,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          )),
+                  child: Text(
+                    AppLocalizations.of(context)!.tunNeedAdmin,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
             ],
           );
-        }));
+        },
+      ),
+    );
   }
 }

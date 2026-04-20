@@ -17,10 +17,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:logger/logger.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tm/protos/vx/log/logger.pb.dart' as pb;
 import 'package:vx/app/settings/setting.dart';
 import 'package:vx/app/x_controller.dart';
 import 'package:vx/common/common.dart';
@@ -30,6 +32,7 @@ import 'package:vx/pref_helper.dart';
 import 'package:vx/utils/logger.dart';
 import 'package:vx/utils/path.dart';
 import 'package:vx/utils/upload_log.dart';
+import 'package:vx/utils/xapi_client.dart';
 import 'package:vx/widgets/circular_progress_indicator.dart';
 import 'package:vx/widgets/form_dialog.dart';
 
@@ -57,11 +60,24 @@ class _DebugLogPageState extends State<DebugLogPage> {
     setState(() {
       _debugLog = value;
     });
+    final apiClient = context.read<XApiClient>();
     await context.read<XController>().restart();
     if (!value) {
-      await unsetDebugLoggerProduction();
+      logger.logger = null;
+      apiClient.setLog(pb.LoggerConfig(logLevel: pb.Level.DISABLED));
     } else {
       await setDebugLoggerProduction();
+      apiClient.setLog(
+        pb.LoggerConfig(
+          logLevel: pb.Level.DEBUG,
+          consoleWriter: true,
+          showCaller: true,
+          showColor: true,
+          filePath: await getDebugFlutterLogDir().then(
+            (value) => path.join(value.path, 'vx-go.txt'),
+          ),
+        ),
+      );
     }
   }
 
@@ -70,27 +86,26 @@ class _DebugLogPageState extends State<DebugLogPage> {
     return Scaffold(
       appBar: widget.showAppBar
           ? getAdaptiveAppBar(
-              context, Text(AppLocalizations.of(context)!.debugLog))
+              context,
+              Text(AppLocalizations.of(context)!.debugLog),
+            )
           : null,
       body: isPkg
           ? Center(
               child: GestureDetector(
-                  onTap: () {
-                    count++;
-                    if (count >= 10 && count < 20) {
-                      snack('debug log enabled');
-                      context.read<SharedPreferences>().setEnableDebugLog(true);
-                      setDebugLoggerProduction();
-                    } else if (count >= 20) {
-                      snack('debug log disabled');
-                      context
-                          .read<SharedPreferences>()
-                          .setEnableDebugLog(false);
-                      unsetDebugLoggerProduction();
-                    }
-                  },
-                  child:
-                      Text(AppLocalizations.of(context)!.debugLogNotAvailable)))
+                onTap: () async {
+                  count++;
+                  if (count >= 10 && count < 20) {
+                    snack('debug log enabled');
+                    await _toggleDebugLog(true);
+                  } else if (count >= 20) {
+                    snack('debug log disabled');
+                    await _toggleDebugLog(false);
+                  }
+                },
+                child: Text(AppLocalizations.of(context)!.debugLogNotAvailable),
+              ),
+            )
           : Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
@@ -104,66 +119,87 @@ class _DebugLogPageState extends State<DebugLogPage> {
                     ],
                   ),
                   const Gap(5),
-                  Text(AppLocalizations.of(context)!.debugLogDesc,
-                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          )),
+                  Text(
+                    AppLocalizations.of(context)!.debugLogDesc,
+                    style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   const Gap(10),
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
                     children: [
                       OutlinedButton(
-                          onPressed: () async {
-                            final reson = await showStringForm(context,
-                                title: AppLocalizations.of(context)!
-                                    .describeTheProblem,
-                                maxLines: 10);
+                        onPressed: () async {
+                          final reson = await showStringForm(
+                            context,
+                            title: AppLocalizations.of(
+                              context,
+                            )!.describeTheProblem,
+                            maxLines: 10,
+                          );
+                          setState(() {
+                            _uploading = true;
+                          });
+                          final logUploadService = context
+                              .read<LogUploadService>();
+                          try {
+                            await logUploadService.uploadDebugLog(
+                              reson ?? 'no reason provided',
+                            );
+                            snack('日志上传成功。谢谢您的反馈！');
+                            // remove all debug log files
+                            // final debugLogDir = await getDebugTunnelLogDir();
+                            // await debugLogDir.delete(recursive: true);
+                            // final flutterLogDir =
+                            //     await getDebugFlutterLogDir();
+                            // await flutterLogDir.delete(recursive: true);
+                          } catch (e) {
+                            snack('无法上传日志：$e');
+                          } finally {
                             setState(() {
-                              _uploading = true;
+                              _uploading = false;
                             });
-                            final logUploadService =
-                                context.read<LogUploadService>();
-                            try {
-                              await logUploadService.uploadDebugLog(
-                                  reson ?? 'no reason provided');
-                              snack('日志上传成功。谢谢您的反馈！');
-                              // remove all debug log files
-                              // final debugLogDir = await getDebugTunnelLogDir();
-                              // await debugLogDir.delete(recursive: true);
-                              // final flutterLogDir =
-                              //     await getDebugFlutterLogDir();
-                              // await flutterLogDir.delete(recursive: true);
-                            } catch (e) {
-                              snack('无法上传日志：$e');
-                            } finally {
-                              setState(() {
-                                _uploading = false;
-                              });
-                            }
-                          },
-                          child: _uploading
-                              ? smallCircularProgressIndicator
-                              : Text(AppLocalizations.of(context)!.upload)),
+                          }
+                        },
+                        child: _uploading
+                            ? smallCircularProgressIndicator
+                            : Text(AppLocalizations.of(context)!.upload),
+                      ),
                       if (!Platform.isIOS && !Platform.isMacOS)
                         OutlinedButton(
-                            onPressed: () async {
+                          onPressed: () async {
+                            try {
                               late Directory? downloadsDir;
                               if (Platform.isAndroid) {
-                                downloadsDir =
-                                    Directory('/storage/emulated/0/Download/');
+                                downloadsDir = Directory(
+                                  '/storage/emulated/0/Download/',
+                                );
                               } else {
                                 downloadsDir = await getDownloadsDirectory();
                               }
-                              final debugLogDir = await getDebugTunnelLogDir();
+                              final debugTunnelLogDir =
+                                  await getDebugTunnelLogDir();
                               final dstDir = path.join(
-                                  downloadsDir!.path, "vx_debug_logs");
-                              if (!Directory(dstDir).existsSync()) {
-                                Directory(dstDir).createSync(recursive: true);
-                              }
+                                downloadsDir!.path,
+                                "vx_debug_logs_${DateTime.now().millisecondsSinceEpoch}",
+                              );
+                              Directory(dstDir).createSync(recursive: true);
                               for (final file
-                                  in await debugLogDir.list().toList()) {
+                                  in await debugTunnelLogDir.list().toList()) {
+                                if (file is File) {
+                                  final fileName = path.basename(file.path);
+                                  if (fileName.startsWith(".")) {
+                                    continue;
+                                  }
+                                  await file.copy(path.join(dstDir, fileName));
+                                }
+                              }
+                              final debugFlutterLogDir =
+                                  await getDebugFlutterLogDir();
+                              for (final file
+                                  in await debugFlutterLogDir.list().toList()) {
                                 if (file is File) {
                                   final fileName = path.basename(file.path);
                                   if (fileName.startsWith(".")) {
@@ -174,31 +210,35 @@ class _DebugLogPageState extends State<DebugLogPage> {
                               }
                               rootScaffoldMessengerKey.currentState
                                   ?.showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    "开发者日志已保存至: $dstDir",
-                                  ),
-                                  duration: const Duration(seconds: 10),
-                                ),
-                              );
-                              // remove all debug log files
-                              await debugLogDir.delete(recursive: true);
-                            },
-                            child: Text(AppLocalizations.of(context)!
-                                .saveToDownloadFolder)),
-                      OutlinedButton(
-                          onPressed: () async {
-                            await _toggleDebugLog(false);
-                            // remove all debug log files
-                            final dir = await getDebugTunnelLogDir();
-                            await dir.delete(recursive: true);
-                            final flutterLogDir = await getDebugFlutterLogDir();
-                            await flutterLogDir.delete(recursive: true);
+                                    SnackBar(
+                                      content: Text("开发者日志已保存至: $dstDir"),
+                                      duration: const Duration(seconds: 10),
+                                    ),
+                                  );
+                            } catch (e) {
+                              logger.e('无法保存日志：$e');
+                              snack('无法保存日志：$e');
+                            }
                           },
                           child: Text(
-                              AppLocalizations.of(context)!.deleteDebugLogs)),
+                            AppLocalizations.of(context)!.saveToDownloadFolder,
+                          ),
+                        ),
+                      OutlinedButton(
+                        onPressed: () async {
+                          await _toggleDebugLog(false);
+                          // remove all debug log files
+                          final dir = await getDebugTunnelLogDir();
+                          await dir.delete(recursive: true);
+                          final flutterLogDir = await getDebugFlutterLogDir();
+                          await flutterLogDir.delete(recursive: true);
+                        },
+                        child: Text(
+                          AppLocalizations.of(context)!.deleteDebugLogs,
+                        ),
+                      ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),

@@ -13,14 +13,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tm/protos/protos/router.pb.dart';
-import 'package:tm/protos/protos/tun.pb.dart';
+import 'package:tm/protos/vx/router/router.pb.dart';
+import 'package:tm/protos/vx/tun/tun.pb.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vx/app/control.dart';
 import 'package:vx/app/home/home.dart';
@@ -31,10 +33,7 @@ import 'package:vx/app/blocs/proxy_selector/proxy_selector_bloc.dart';
 import 'package:vx/common/common.dart';
 import 'package:vx/utils/logger.dart';
 
-enum PingMode {
-  Real,
-  Rtt;
-}
+enum PingMode { Real, Rtt }
 
 enum Language {
   zh(Locale('zh', 'CN'), '简体中文(中国)', aiTranslated: false),
@@ -52,11 +51,7 @@ enum Language {
     return null;
   }
 
-  const Language(
-    this.locale,
-    this.localText, {
-    this.aiTranslated = true,
-  });
+  const Language(this.locale, this.localText, {this.aiTranslated = true});
 }
 
 extension PrefHelperExtension on SharedPreferences {
@@ -145,25 +140,15 @@ extension PrefHelperExtension on SharedPreferences {
     return getString('customRoutingMode');
   }
 
-  void _setCustomRoutingMode(String? mode) {
-    if (mode == null) {
-      remove('customRoutingMode');
-    } else {
-      setString('customRoutingMode', mode);
-    }
-  }
-
   SelectorConfig get manualSelectorConfig {
     return SelectorConfig(
       strategy: SelectorConfig_SelectingStrategy.ALL,
       tag: defaultProxySelectorTag,
       balanceStrategy:
           proxySelectorManualMode == ProxySelectorManualNodeSelectionMode.single
-              ? SelectorConfig_BalanceStrategy.RANDOM
-              : proxySelectorManualMultipleBalanceStrategy,
-      filter: SelectorConfig_Filter(
-        selected: true,
-      ),
+          ? SelectorConfig_BalanceStrategy.RANDOM
+          : proxySelectorManualMultipleBalanceStrategy,
+      filter: SelectorConfig_Filter(selected: true),
       landHandlers: proxySelectorManualLandHandlers,
     );
   }
@@ -195,19 +180,22 @@ extension PrefHelperExtension on SharedPreferences {
   }
 
   void setProxySelectorLandHandlers(List<Int64> ids) {
-    setStringList('proxySelectorManualLandHandlers',
-        ids.map((e) => e.toString()).toList());
+    setStringList(
+      'proxySelectorManualLandHandlers',
+      ids.map((e) => e.toString()).toList(),
+    );
   }
 
   SelectorConfig_BalanceStrategy
-      get proxySelectorManualMultipleBalanceStrategy {
+  get proxySelectorManualMultipleBalanceStrategy {
     final strategy = getInt('proxySelectorManualMultipleBalanceStrategy');
     if (strategy == null) return SelectorConfig_BalanceStrategy.MEMORY;
     return SelectorConfig_BalanceStrategy.values[strategy];
   }
 
   void setProxySelectorManualMultipleBalanceStrategy(
-      SelectorConfig_BalanceStrategy strategy) {
+    SelectorConfig_BalanceStrategy strategy,
+  ) {
     setInt('proxySelectorManualMultipleBalanceStrategy', strategy.value);
   }
 
@@ -319,6 +307,22 @@ extension PrefHelperExtension on SharedPreferences {
 
   void setShowHandler(bool show) {
     setBool('showHandler', show);
+  }
+
+  bool get showSessionOngoing {
+    return getBool('showSessionOngoing') ?? false;
+  }
+
+  void setShowSessionOngoing(bool show) {
+    setBool('showSessionOngoing', show);
+  }
+
+  bool get showRealtimeUsage {
+    return getBool('showRealtimeUsage') ?? false;
+  }
+
+  void setShowRealtimeUsage(bool show) {
+    setBool('showRealtimeUsage', show);
   }
 
   DateTime? get lastGeoUpdate {
@@ -712,20 +716,12 @@ extension PrefHelperExtension on SharedPreferences {
     setBool('windowsServiceInstalled', installed);
   }
 
-  bool get fallbackToProxy {
-    return getBool('fallbackToProxy') ?? false;
+  bool get automaticallyAddFallbackDomain {
+    return getBool('automaticallyAddFallbackDomain') ?? true;
   }
 
-  void setFallbackToProxy(bool enable) {
-    setBool('fallbackToProxy', enable);
-  }
-
-  bool get fallbackRetryDomain {
-    return getBool('fallbackRetryDomain') ?? false;
-  }
-
-  void setFallbackRetryDomain(bool enable) {
-    setBool('fallbackRetryDomain', enable);
+  void setAutomaticallyAddFallbackDomain(bool enable) {
+    setBool('automaticallyAddFallbackDomain', enable);
   }
 
   bool get changeIpv6ToDomain {
@@ -734,6 +730,14 @@ extension PrefHelperExtension on SharedPreferences {
 
   void setChangeIpv6ToDomain(bool enable) {
     setBool('changeIpv6ToDomain', enable);
+  }
+
+  int get fallbackTimeout {
+    return getInt('fallbackTimeout') ?? 8;
+  }
+
+  void setFallbackTimeout(int timeout) {
+    setInt('fallbackTimeout', timeout);
   }
 
   PingMode get pingMode {
@@ -956,10 +960,7 @@ extension PrefHelperExtension on SharedPreferences {
   List<int> get recentlyUsedNodeIds {
     final list = getStringList('recentlyUsedNodeIds');
     if (list == null) return [];
-    return list
-        .map((e) => int.tryParse(e))
-        .whereType<int>()
-        .toList();
+    return list.map((e) => int.tryParse(e)).whereType<int>().toList();
   }
 
   /// Append a node ID to recently used (prepend in list, dedupe, keep max 10).
@@ -968,8 +969,9 @@ extension PrefHelperExtension on SharedPreferences {
     final current = recentlyUsedNodeIds;
     final updated = [id, ...current.where((e) => e != id)].take(10).toList();
     setStringList(
-        'recentlyUsedNodeIds',
-        updated.map((e) => e.toString()).toList());
+      'recentlyUsedNodeIds',
+      updated.map((e) => e.toString()).toList(),
+    );
   }
 
   List<String> getSelectorSubString() {
@@ -1003,6 +1005,55 @@ extension PrefHelperExtension on SharedPreferences {
     setStringList('hiddenHomeWidgetIds', ids.toList());
   }
 
+  /// Whether the user prefers the customizable home page layout.
+  ///
+  /// Defaults to `false`, which means using the standard home page.
+  bool get useCustomizableHomePage {
+    return getBool('useCustomizableHomePage') ?? false;
+  }
+
+  void setUseCustomizableHomePage(bool value) {
+    setBool('useCustomizableHomePage', value);
+  }
+
+  HomeLayout? getHomeWidgetRows(HomeLayoutPreset preset) {
+    final jsonRaw = getString('homeWidgetRows.${preset.storageKey}');
+    try {
+      if (jsonRaw != null && jsonRaw.isNotEmpty) {
+        return HomeLayout.fromJson(jsonRaw);
+      }
+    } catch (e) {
+      logger.e('Error parsing home widget rows: $e');
+      clearHomeWidgetRows(preset);
+    }
+    return null;
+  }
+
+  void setHomeWidgetRows(HomeLayoutPreset preset, HomeLayout rows) {
+    setString('homeWidgetRows.${preset.storageKey}', rows.toJson());
+  }
+
+  void clearHomeWidgetRows(HomeLayoutPreset preset) {
+    remove('homeWidgetRows.${preset.storageKey}');
+  }
+
+  // List<Map<String, dynamic>>? get homeDashboardLayout {
+  //   final raw = getString('homeDashboardLayout');
+  //   if (raw == null || raw.isEmpty) return null;
+  //   final layout = jsonDecode(raw);
+  //   inspect(layout);
+  //   if (layout is! List<Map<String, dynamic>>) return null;
+  //   return layout;
+  // }
+
+  // void setHomeDashboardLayout(List<Map<String, dynamic>> layout) {
+  //   setString('homeDashboardLayout', jsonEncode(layout));
+  // }
+
+  // void clearHomeDashboardLayout() {
+  //   remove('homeDashboardLayout');
+  // }
+
   String get uniqueDeviceId {
     const key = 'unique_device_id';
 
@@ -1018,5 +1069,105 @@ extension PrefHelperExtension on SharedPreferences {
     // Store for future use
     setString(key, deviceId);
     return deviceId;
+  }
+
+  int get directDialingTimeout {
+    return getInt('directDialingTimeout') ?? 16;
+  }
+
+  void setDirectDialingTimeout(int timeout) {
+    setInt('directDialingTimeout', timeout);
+  }
+
+  int get globalDialTimeout {
+    return getInt('globalDialTimeout') ?? 16;
+  }
+
+  void setGlobalDialTimeout(int timeout) {
+    setInt('globalDialTimeout', timeout);
+  }
+
+  int get policyHandshakeTimeout {
+    return getInt('policyHandshakeTimeout') ?? 4;
+  }
+
+  void setPolicyHandshakeTimeout(int timeout) {
+    setInt('policyHandshakeTimeout', timeout);
+  }
+
+  int get policyConnectionIdleTimeout {
+    return getInt('policyConnectionIdleTimeout') ?? 60;
+  }
+
+  void setPolicyConnectionIdleTimeout(int timeout) {
+    setInt('policyConnectionIdleTimeout', timeout);
+  }
+
+  int get policyUdpIdleTimeout {
+    return getInt('policyUdpIdleTimeout') ?? 120;
+  }
+
+  void setPolicyUdpIdleTimeout(int timeout) {
+    setInt('policyUdpIdleTimeout', timeout);
+  }
+
+  int get policyUpLinkOnlyTimeout {
+    return getInt('policyUpLinkOnlyTimeout') ?? 5;
+  }
+
+  void setPolicyUpLinkOnlyTimeout(int timeout) {
+    setInt('policyUpLinkOnlyTimeout', timeout);
+  }
+
+  int get policyDownLinkOnlyTimeout {
+    return getInt('policyDownLinkOnlyTimeout') ?? 2;
+  }
+
+  void setPolicyDownLinkOnlyTimeout(int timeout) {
+    setInt('policyDownLinkOnlyTimeout', timeout);
+  }
+
+  DateTime? get reviewFirstUseAt {
+    final value = getInt('reviewFirstUseAt');
+    if (value == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(value);
+  }
+
+  void setReviewFirstUseAt(DateTime time) {
+    setInt('reviewFirstUseAt', time.millisecondsSinceEpoch);
+  }
+
+  int get reviewAppOpenCount {
+    return getInt('reviewAppOpenCount') ?? 0;
+  }
+
+  void setReviewAppOpenCount(int count) {
+    setInt('reviewAppOpenCount', count);
+  }
+
+  DateTime? get reviewLastPromptAt {
+    final value = getInt('reviewLastPromptAt');
+    if (value == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(value);
+  }
+
+  void setReviewLastPromptAt(DateTime time) {
+    setInt('reviewLastPromptAt', time.millisecondsSinceEpoch);
+  }
+
+  int get reviewPromptCount {
+    return getInt('reviewPromptCount') ?? 0;
+  }
+
+  void setReviewPromptCount(int count) {
+    setInt('reviewPromptCount', count);
+  }
+
+  bool get reviewAutoPromptDisabled {
+    return getBool('reviewAutoPromptDisabled') ?? false;
+  }
+
+  void setReviewAutoPromptDisabled(bool disabled) {
+    setBool('reviewAutoPromptDisabled', disabled);
   }
 }

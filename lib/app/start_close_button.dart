@@ -46,17 +46,20 @@ class StartCloseCubit extends Cubit<XStatus> {
     required SharedPreferences pref,
     required XController xController,
     required AuthBloc authBloc,
-  })  : _pref = pref,
-        _xController = xController,
-        _authBloc = authBloc,
-        super(XStatus.unknown) {
-    _statusSubscription = xController.statusStream().listen((status) {
-      emit(status);
-    }, onError: (error, stackTrace) {
-      logger.e("x state stream error", error: error, stackTrace: stackTrace);
-      reportError("x state stream error", error);
-      emit(XStatus.unknown);
-    });
+  }) : _pref = pref,
+       _xController = xController,
+       _authBloc = authBloc,
+       super(XStatus.unknown) {
+    _statusSubscription = xController.statusStream().listen(
+      (status) {
+        emit(status);
+      },
+      onError: (error, stackTrace) {
+        logger.e("x state stream error", error: error, stackTrace: stackTrace);
+        reportError("x state stream error", error);
+        emit(XStatus.unknown);
+      },
+    );
   }
 
   final SharedPreferences _pref;
@@ -79,7 +82,9 @@ class StartCloseCubit extends Cubit<XStatus> {
     if (rootNavigationKey.currentContext != null &&
         !_authBloc.state.pro &&
         !isDefaultRouteMode(
-            _pref.routingMode!, rootNavigationKey.currentContext!)) {
+          _pref.routingMode!,
+          rootNavigationKey.currentContext!,
+        )) {
       return rootLocalizations()?.freeUserCannotUseCustomRoutingMode;
     }
     return null;
@@ -88,8 +93,10 @@ class StartCloseCubit extends Cubit<XStatus> {
   Future<void> start() async {
     final canStartError = _canStart();
     if (canStartError != null) {
-      snack(rootLocalizations()?.startFailedWithReason(canStartError),
-          duration: const Duration(seconds: 60));
+      snack(
+        rootLocalizations()?.startFailedWithReason(canStartError, ''),
+        duration: const Duration(seconds: 60),
+      );
       return;
     }
 
@@ -97,21 +104,35 @@ class StartCloseCubit extends Cubit<XStatus> {
     try {
       await _xController.start();
     } on ConfigException catch (e, s) {
-      snack(rootLocalizations()?.startFailedWithReason(e.message));
+      snack(
+        rootLocalizations()?.startFailedWithReason(e.message, s.toString()),
+        duration: const Duration(seconds: 60),
+      );
       logger.e('start error', error: e, stackTrace: s);
     } on DriftRemoteException catch (e, s) {
       if (e.remoteCause is SqliteException &&
           (e.remoteCause as SqliteException).extendedResultCode == 5) {
-        snack(rootLocalizations()
-            ?.dbError(e.remoteCause.toString()));
+        snack(
+          rootLocalizations()?.dbError(e.remoteCause.toString()),
+          duration: const Duration(seconds: 60),
+        );
       } else {
         logger.e('start error', error: e, stackTrace: s);
-        snack(rootLocalizations()
-            ?.startFailedWithReason(e.remoteCause.toString()));
+        snack(
+          rootLocalizations()?.startFailedWithReason(
+            e.remoteCause.toString(),
+            s.toString(),
+          ),
+          duration: const Duration(seconds: 60),
+        );
       }
     } catch (e, s) {
       logger.e('start error', error: e, stackTrace: s);
-      snack(rootLocalizations()?.startFailedWithReason(e.toString()));
+      reportError("start error", e, stackTrace: s);
+      snack(
+        rootLocalizations()?.startFailedWithReason(e.toString(), s.toString()),
+        duration: const Duration(seconds: 60),
+      );
     }
   }
 
@@ -120,18 +141,19 @@ class StartCloseCubit extends Cubit<XStatus> {
     try {
       await _xController.stop();
     } catch (e) {
-      rootScaffoldMessengerKey.currentState?.showSnackBar(SnackBar(
-        content: Text(e.toString()),
-      ));
+      rootScaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
   }
 }
 
 class StartCloseButton extends StatelessWidget {
-  const StartCloseButton(
-      {super.key,
-      this.floating = false,
-      this.size = StartCloseButtonSize.middle});
+  const StartCloseButton({
+    super.key,
+    this.floating = false,
+    this.size = StartCloseButtonSize.middle,
+  });
 
   final StartCloseButtonSize size;
   final bool floating;
@@ -149,9 +171,7 @@ class StartCloseButton extends StatelessWidget {
           child: SizedBox(
             width: size.progressIndicatorSize,
             height: size.progressIndicatorSize,
-            child: const CircularProgressIndicator(
-              strokeWidth: 3,
-            ),
+            child: const CircularProgressIndicator(strokeWidth: 3),
           ),
         );
         switch (state) {
@@ -167,10 +187,7 @@ class StartCloseButton extends StatelessWidget {
             };
             backgroundColor = Theme.of(context).colorScheme.errorContainer;
           case XStatus.disconnected:
-            icon = Icon(
-              Icons.play_arrow_rounded,
-              size: size.iconSize,
-            );
+            icon = Icon(Icons.play_arrow_rounded, size: size.iconSize);
             text = Text(AppLocalizations.of(context)!.start);
             onPressed = () {
               ctx.read<StartCloseCubit>().start();

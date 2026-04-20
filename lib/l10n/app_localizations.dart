@@ -223,6 +223,12 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get add;
 
+  /// No description provided for @addToHomeScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to home screen'**
+  String get addToHomeScreen;
+
   /// No description provided for @name.
   ///
   /// In en, this message translates to:
@@ -312,6 +318,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Subscription'**
   String get subscription;
+
+  /// No description provided for @autoUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto Update'**
+  String get autoUpdate;
 
   /// No description provided for @unknown.
   ///
@@ -697,11 +709,11 @@ abstract class AppLocalizations {
   /// **'Test Area'**
   String get testArea;
 
-  /// No description provided for @autoUpdate.
+  /// No description provided for @autoDownload.
   ///
   /// In en, this message translates to:
   /// **'Automatically Download New Version'**
-  String get autoUpdate;
+  String get autoDownload;
 
   /// No description provided for @unableToGetNodes.
   ///
@@ -822,6 +834,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enable in auto mode'**
   String get enableInAuto;
+
+  /// No description provided for @homeCustomizeDragHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag cards to reorder. Hidden cards move to the bottom tray.'**
+  String get homeCustomizeDragHint;
+
+  /// No description provided for @homeCustomizeResetOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset order'**
+  String get homeCustomizeResetOrder;
+
+  /// No description provided for @homeCustomizeHiddenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden'**
+  String get homeCustomizeHiddenTitle;
+
+  /// No description provided for @homeCustomizeDropHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop here to add at bottom'**
+  String get homeCustomizeDropHere;
+
+  /// No description provided for @homeCustomizeMergeWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Merge with…'**
+  String get homeCustomizeMergeWith;
+
+  /// No description provided for @homeCustomizeNoMergeTargets.
+  ///
+  /// In en, this message translates to:
+  /// **'No mergeable widgets'**
+  String get homeCustomizeNoMergeTargets;
+
+  /// No description provided for @compact.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get compact;
+
+  /// No description provided for @medium.
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get medium;
+
+  /// No description provided for @large.
+  ///
+  /// In en, this message translates to:
+  /// **'Large'**
+  String get large;
 
   /// No description provided for @showClient.
   ///
@@ -1222,7 +1288,7 @@ abstract class AppLocalizations {
   /// No description provided for @nodeGroup.
   ///
   /// In en, this message translates to:
-  /// **'Node Group'**
+  /// **'Group'**
   String get nodeGroup;
 
   /// No description provided for @lowestLatency.
@@ -1393,6 +1459,30 @@ abstract class AppLocalizations {
   /// **'IP -> Domain'**
   String get ipToDomain;
 
+  /// No description provided for @showSessionOngoingIndicator.
+  ///
+  /// In en, this message translates to:
+  /// **'Show session ongoing indicator'**
+  String get showSessionOngoingIndicator;
+
+  /// No description provided for @hideSessionOngoingIndicator.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide session ongoing indicator'**
+  String get hideSessionOngoingIndicator;
+
+  /// No description provided for @showRealtimeUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Show realtime usage'**
+  String get showRealtimeUsage;
+
+  /// No description provided for @hideRealtimeUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide realtime usage'**
+  String get hideRealtimeUsage;
+
   /// No description provided for @proFeatureDescription.
   ///
   /// In en, this message translates to:
@@ -1516,8 +1606,8 @@ abstract class AppLocalizations {
   /// No description provided for @startFailedWithReason.
   ///
   /// In en, this message translates to:
-  /// **'Failed to start: {reason}'**
-  String startFailedWithReason(String reason);
+  /// **'Failed to start: {reason}. StackTrace: {stackTrace}'**
+  String startFailedWithReason(String reason, String stackTrace);
 
   /// No description provided for @startFailedReasonTunNeedAdmin.
   ///
@@ -2668,7 +2758,7 @@ abstract class AppLocalizations {
   /// No description provided for @dnsRuleNameGfwProxyFake.
   ///
   /// In en, this message translates to:
-  /// **'GFW Mode Proxy Domains(A/AAAA)'**
+  /// **'GFW Mode Proxy Domains & Non CN Domains(A/AAAA)'**
   String get dnsRuleNameGfwProxyFake;
 
   /// No description provided for @dnsRuleNameGfwProxy.
@@ -3187,6 +3277,12 @@ abstract class AppLocalizations {
   /// **'Current Backup'**
   String get currentBackup;
 
+  /// No description provided for @exportToFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Export to file'**
+  String get exportToFile;
+
   /// No description provided for @uploadDb.
   ///
   /// In en, this message translates to:
@@ -3334,7 +3430,7 @@ abstract class AppLocalizations {
   /// No description provided for @internalDnsDesc.
   ///
   /// In en, this message translates to:
-  /// **'Internal DNS servers are used to resolve domains when outbounds are dialing. There are two of them, one is internal-dns-proxy, which uses the Proxy selector to connect to 1.1.1.1; the other is internal-dns-direct, which uses directly connect to 223.5.5.5 and 1.1.1.1. The internal-dns-direct is used first, if it failed, the internal-dns-proxy will be used.'**
+  /// **'Internal DNS servers are mainly used to resolve domains when outbounds are dialing. They will be used from left to right until one of them succeeds.'**
   String get internalDnsDesc;
 
   /// No description provided for @nodeSetDesc.
@@ -4051,6 +4147,24 @@ abstract class AppLocalizations {
   /// **'Update Interval'**
   String get geoUpdateInterval;
 
+  /// No description provided for @geoUpdateNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Now'**
+  String get geoUpdateNow;
+
+  /// No description provided for @geoRestoreToDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore to Default'**
+  String get geoRestoreToDefault;
+
+  /// No description provided for @geoUpdateSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Geo update success'**
+  String get geoUpdateSuccess;
+
   /// No description provided for @interval.
   ///
   /// In en, this message translates to:
@@ -4075,10 +4189,22 @@ abstract class AppLocalizations {
   /// **'There might be incompatibility issues'**
   String get shareWithOtherClientsNotice;
 
+  /// No description provided for @homeEditStandardLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard'**
+  String get homeEditStandardLayout;
+
+  /// No description provided for @homeEditCustomizableLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Customizable'**
+  String get homeEditCustomizableLayout;
+
   /// No description provided for @domainStrategyDesc.
   ///
   /// In en, this message translates to:
-  /// **'Determine how to connect to server. PreferIPv4: use IPv4, if failed, use IPv6; PreferIPv6: use IPv6, if failed, use IPv4; IPv4Only: only try IPv4; IPv6Only: only try IPv6'**
+  /// **'Determine how to resolve domains when dialing. PreferIPv4: lookup both IPv4 and IPv6(if default nic support 6), wait for the two queries to complete, then try IPv4s, if failed, try IPv6s; PreferIPv6: lookup both IPv4 and IPv6(if default nic support 6), wait for the two queries to complete, then try IPv6s first, if failed, use IPv4; IPv4Only: only lookup IPv4; IPv6Only: only lookup IPv6; Speed: lookup both A and AAAA(if default nic support 6), use the first returned result (might be IPv4s or IPv6s), if failed, use the other IPs.'**
   String get domainStrategyDesc;
 
   /// No description provided for @uotDesc.
@@ -4104,6 +4230,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'VX-core is not installed'**
   String get vxNotInstalled;
+
+  /// No description provided for @vxVersionTooLow.
+  ///
+  /// In en, this message translates to:
+  /// **'VX-core version is too low, please update to the latest version'**
+  String get vxVersionTooLow;
 
   /// No description provided for @howToUseVX.
   ///
@@ -4302,6 +4434,204 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add DNS Record'**
   String get addDnsRecord;
+
+  /// No description provided for @internalDns.
+  ///
+  /// In en, this message translates to:
+  /// **'Internal DNS Servers'**
+  String get internalDns;
+
+  /// No description provided for @fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Fallback'**
+  String get fallback;
+
+  /// No description provided for @fallbackDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If the handler picked for this rule failed, use the following fallbacks. Each fallback has a list of conditions, the fallback will be used only if all conditions are true.'**
+  String get fallbackDesc;
+
+  /// No description provided for @rewriteIpToDomain.
+  ///
+  /// In en, this message translates to:
+  /// **'Rewrite IP to Domain'**
+  String get rewriteIpToDomain;
+
+  /// No description provided for @rewriteIpToDomainDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If the request address is IP, and there is sniffed domain, then use the sniffed domain as the request address. This is a measure for DNS pollution'**
+  String get rewriteIpToDomainDesc;
+
+  /// No description provided for @resultIpSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Result IP Set'**
+  String get resultIpSet;
+
+  /// No description provided for @resultIpSetDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'A/AAAA records whose IPs are not in the set will be dropped'**
+  String get resultIpSetDesc;
+
+  /// No description provided for @inverse.
+  ///
+  /// In en, this message translates to:
+  /// **'Inverse'**
+  String get inverse;
+
+  /// No description provided for @automaticallyAddFallbackDomain.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically Add Fallback Domain'**
+  String get automaticallyAddFallbackDomain;
+
+  /// No description provided for @automaticallyAddFallbackDomainDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If a connection initially went direct but failed, then it fallbacked to proxy and succeeded, automatically add the domain into a domain set called \"Fallback\"'**
+  String get automaticallyAddFallbackDomainDesc;
+
+  /// No description provided for @fallbackTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Fallback Timeout'**
+  String get fallbackTimeout;
+
+  /// No description provided for @fallbackTimeoutDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If a connection did not receive any data after the fallback timeout, this connection will start fallbacking and use the next handler to retry.'**
+  String get fallbackTimeoutDesc;
+
+  /// No description provided for @directDialingTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct Dialing Timeout'**
+  String get directDialingTimeout;
+
+  /// No description provided for @directDialingTimeoutHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The dial timeout for direct connection. If failed to establish TCP connection within this timeout, the connection will fail.'**
+  String get directDialingTimeoutHint;
+
+  /// No description provided for @globalDialTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Global Dial Timeout'**
+  String get globalDialTimeout;
+
+  /// No description provided for @globalDialTimeoutHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The dial timeout for all nodes. If failed to establish TCP connection within this timeout, the connection will fail.'**
+  String get globalDialTimeoutHint;
+
+  /// No description provided for @reset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get reset;
+
+  /// No description provided for @resetConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This will reset your preferences and database. Your existing data will be lost. This action cannot be undone.'**
+  String get resetConfirmMessage;
+
+  /// No description provided for @resetAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get resetAction;
+
+  /// No description provided for @resetCompletedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset complete'**
+  String get resetCompletedTitle;
+
+  /// No description provided for @resetCompletedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Database and preferences have been reset. Restart VX to continue.'**
+  String get resetCompletedMessage;
+
+  /// No description provided for @resetFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to reset: {error}'**
+  String resetFailed(String error);
+
+  /// No description provided for @policyTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Policy Timeout'**
+  String get policyTimeout;
+
+  /// No description provided for @policyTimeoutNoTimeoutHint.
+  ///
+  /// In en, this message translates to:
+  /// **'0 means no timeout'**
+  String get policyTimeoutNoTimeoutHint;
+
+  /// No description provided for @policyTcpIdleTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'TCP Idle Timeout'**
+  String get policyTcpIdleTimeout;
+
+  /// No description provided for @policyTcpIdleTimeoutDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If uplink or downlink data is absent during this period, the connection will be closed.'**
+  String get policyTcpIdleTimeoutDesc;
+
+  /// No description provided for @policyUdpIdleTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'UDP Idle Timeout'**
+  String get policyUdpIdleTimeout;
+
+  /// No description provided for @policyUdpIdleTimeoutDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If no uplink data is received during this period, the connection will be closed.'**
+  String get policyUdpIdleTimeoutDesc;
+
+  /// No description provided for @policyUpLinkOnlyTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'UpLink Only Timeout'**
+  String get policyUpLinkOnlyTimeout;
+
+  /// No description provided for @policyUpLinkOnlyTimeoutDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If a TCP connection's downlink stream is done, the idle timeout switches to this value.'**
+  String get policyUpLinkOnlyTimeoutDesc;
+
+  /// No description provided for @policyDownLinkOnlyTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'DownLink Only Timeout'**
+  String get policyDownLinkOnlyTimeout;
+
+  /// No description provided for @policyDownLinkOnlyTimeoutDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If a TCP connection's uplink stream is done, the idle timeout switches to this value.'**
+  String get policyDownLinkOnlyTimeoutDesc;
+
+  /// No description provided for @tutorial.
+  ///
+  /// In en, this message translates to:
+  /// **'Tutorial'**
+  String get tutorial;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

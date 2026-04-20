@@ -30,15 +30,16 @@ class _RouteState extends State<_Route> {
   void initState() {
     super.initState();
     _customRouteModesSubscription =
-        Provider.of<RouteRepo>(context, listen: false)
-            .getCustomRouteModesStream()
-            .listen((value) {
-      if (value.isNotEmpty) {
-        setState(() {
-          _configs = value;
+        Provider.of<RouteRepo>(
+          context,
+          listen: false,
+        ).getCustomRouteModesStream().listen((value) {
+          if (value.isNotEmpty) {
+            setState(() {
+              _configs = value;
+            });
+          }
         });
-      }
-    });
   }
 
   @override
@@ -50,39 +51,43 @@ class _RouteState extends State<_Route> {
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<ProxySelectorBloc>();
-    final visibility = context.read<HomeWidgetVisibilityNotifier>();
     return HomeCard(
-        title: AppLocalizations.of(context)!.routing,
-        icon: Icons.alt_route_rounded,
-        onHide: () => visibility.hide(HomeWidgetId.route.id),
-        child: BlocSelector<ProxySelectorBloc, ProxySelectorState, String?>(
-            selector: (state) => state.routeMode,
-            builder: (context, routeModeIdx) {
-              return Wrap(
-                crossAxisAlignment: WrapCrossAlignment.start,
-                spacing: 5,
-                runSpacing: 5,
-                children: [
-                  ..._configs.map((e) => ChoiceChip(
-                        tooltip: isDefaultRouteMode(e.name, context)
-                            ? DefaultRouteMode.values
-                                .firstWhereOrNull((defaultMode) {
-                                return defaultMode.toLocalString(
-                                        AppLocalizations.of(context)!) ==
-                                    e.name;
-                              })?.description(context)
-                            : null,
-                        label: Text(e.name),
-                        selected: (routeModeIdx == e.name),
-                        onSelected: (value) {
-                          if (routeModeIdx == e.name) {
-                            return;
-                          }
-                          bloc.add(RoutingModeSelectionChangeEvent(e));
-                        },
-                      )),
-                ],
-              );
-            }));
+      title: AppLocalizations.of(context)!.routing,
+      icon: Icons.alt_route_rounded,
+      child: BlocSelector<ProxySelectorBloc, ProxySelectorState, String?>(
+        selector: (state) => state.routeMode,
+        builder: (context, routeModeIdx) {
+          return Wrap(
+            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: 5,
+            runSpacing: 5,
+            children: [
+              ..._configs.map(
+                (e) => ChoiceChip(
+                  tooltip: isDefaultRouteMode(e.name, context)
+                      ? DefaultRouteMode.values
+                            .firstWhereOrNull((defaultMode) {
+                              return defaultMode.toLocalString(
+                                    AppLocalizations.of(context)!,
+                                  ) ==
+                                  e.name;
+                            })
+                            ?.description(context)
+                      : null,
+                  label: Text(e.name),
+                  selected: (routeModeIdx == e.name),
+                  onSelected: (value) {
+                    if (routeModeIdx == e.name) {
+                      return;
+                    }
+                    bloc.add(RoutingModeSelectionChangeEvent(e));
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }

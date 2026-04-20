@@ -72,6 +72,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get add => '添加';
 
   @override
+  String get addToHomeScreen => '添加到主页';
+
+  @override
   String get name => '名称';
 
   @override
@@ -115,6 +118,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get subscription => '订阅';
+
+  @override
+  String get autoUpdate => '自动更新';
 
   @override
   String get unknown => '未知';
@@ -309,7 +315,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get testArea => '地区检测';
 
   @override
-  String get autoUpdate => '自动下载新版本';
+  String get autoDownload => '自动下载新版本';
 
   @override
   String get unableToGetNodes => '获取节点失败，请复制正确格式的订阅链接后重试';
@@ -370,6 +376,33 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get enableInAuto => '自动模式下启用';
+
+  @override
+  String get homeCustomizeDragHint => '拖动卡片可以重新排序，隐藏的卡片会移动到底部托盘。';
+
+  @override
+  String get homeCustomizeResetOrder => '重置顺序';
+
+  @override
+  String get homeCustomizeHiddenTitle => '已隐藏';
+
+  @override
+  String get homeCustomizeDropHere => '拖放到这里以添加到列底部';
+
+  @override
+  String get homeCustomizeMergeWith => '合并到…';
+
+  @override
+  String get homeCustomizeNoMergeTargets => '没有可合并的小部件';
+
+  @override
+  String get compact => '紧凑';
+
+  @override
+  String get medium => '中等';
+
+  @override
+  String get large => '大';
 
   @override
   String get showClient => '显示客户端';
@@ -675,6 +708,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ipToDomain => 'IP -> 域名';
 
   @override
+  String get showSessionOngoingIndicator => '显示会话进行中指示器';
+
+  @override
+  String get hideSessionOngoingIndicator => '隐藏会话进行中指示器';
+
+  @override
+  String get showRealtimeUsage => '显示实时使用情况';
+
+  @override
+  String get hideRealtimeUsage => '隐藏实时使用情况';
+
+  @override
   String get proFeatureDescription => '该功能为Pro功能，升级为Pro用户即可解锁全部功能';
 
   @override
@@ -741,8 +786,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get startFailed => '启动失败';
 
   @override
-  String startFailedWithReason(String reason) {
-    return '启动失败: $reason';
+  String startFailedWithReason(String reason, String stackTrace) {
+    return '启动失败: $reason. StackTrace: $stackTrace';
   }
 
   @override
@@ -1066,7 +1111,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get logout => '登出';
 
   @override
-  String get geoSiteOrGeoIPFileNotFound => '正在Geo文件...';
+  String get geoSiteOrGeoIPFileNotFound => '正在下载Geo文件...';
 
   @override
   String get createIpSmallSet => '创建IP小集合';
@@ -1383,7 +1428,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dnsRule => 'DNS规则';
 
   @override
-  String get dnsRuleNameGfwProxyFake => 'GFW模式代理域名A/AAAA';
+  String get dnsRuleNameGfwProxyFake => 'GFW模式代理域名 & 非中国大陆域名(A/AAAA)';
 
   @override
   String get dnsRuleNameGfwProxy => 'GFW模式代理域名';
@@ -1654,6 +1699,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get currentBackup => '当前备份';
 
   @override
+  String get exportToFile => '导出到文件';
+
+  @override
   String get uploadDb => '上传';
 
   @override
@@ -1726,7 +1774,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get rpmTunNotice => 'When TUN is on, Reverse Path Forwarding mode will be set to Loose(2) and reset to what it was when disconnect. You can go to the following website to learn about Reverse Path Forwarding';
 
   @override
-  String get internalDnsDesc => '内部DNS服务器用于在出站拨号时解析域名。有两个，一个叫“internal-dns-proxy”，默认模式下它使用代理选择器连接到1.1.1.1；另一个叫“internal-dns-direct”，默认模式下直连223.5.5.5和1.1.1.1。解析域名时会先使用internal-dns-direct，如果失败，则使用internal-dns-proxy，如果它也没有返回结果，那么就使用系统DNS';
+  String get internalDnsDesc => '内部DNS服务器主要用于在出站拨号时解析域名，它们会从左到右依次被使用，直到解析成功为止';
 
   @override
   String get nodeSetDesc => '\"__node__\"为包含所有节点域名/IP的域名小集合/IP小集合。它主要被用于让VX节点测试走直连。节点域名包括它的地址和SNI';
@@ -1750,7 +1798,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lookupEchDesc => '如果启用且上面的ECH Config为空，则从DNS服务器查找ECH Config, 如果查询成功，使用ECH，否则不使用ECH。';
 
   @override
-  String get adWanted => '发布广告';
+  String get adWanted => '在VX内投放广告';
 
   @override
   String get basicQuickDeployTitle => '双核四协议';
@@ -2090,6 +2138,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get geoUpdateInterval => '更新间隔';
 
   @override
+  String get geoUpdateNow => '立即更新';
+
+  @override
+  String get geoRestoreToDefault => '恢复默认';
+
+  @override
+  String get geoUpdateSuccess => '地理文件更新成功';
+
+  @override
   String get interval => '间隔';
 
   @override
@@ -2102,7 +2159,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shareWithOtherClientsNotice => '可能存在不兼容问题';
 
   @override
-  String get domainStrategyDesc => '影响如何连接服务器。PreferIPv4: 优先使用IPv4，如果失败，使用IPv6。PreferIPv6: 优先使用IPv6，如果失败，使用IPv4。IPv4Only: 只尝试IPv4。IPv6Only: 只尝试IPv6。';
+  String get homeEditStandardLayout => '标准主页';
+
+  @override
+  String get homeEditCustomizableLayout => '可自定义主页';
+
+  @override
+  String get domainStrategyDesc => '影响拨号时如何解析域名。PreferIPv4: 同时查寻A和AAAA，然后尝试先IPv4，如果失败，尝试IPv6。PreferIPv6: 同时查寻A和AAAA，然后尝试先IPv6，如果失败，尝试IPv4。IPv4Only: 只查寻IPv4。IPv6Only: 只查寻IPv6。Speed: 同时查寻A和AAAA，哪个先返回结果就用哪个（可能是IPv4s或IPv6s），如果失败，则使用另一个组结果。';
 
   @override
   String get uotDesc => '使用TCP传输UDP（Sagernet UDP over TCP v2 协议）。服务端也必须支持它';
@@ -2115,6 +2178,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get vxNotInstalled => 'VX-core未安装';
+
+  @override
+  String get vxVersionTooLow => 'VX-core版本过低，请更新到最新版本';
 
   @override
   String get howToUseVX => '关于VX的使用方法，请查看我们的YouTube频道';
@@ -2216,4 +2282,107 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get addDnsRecord => '添加本地DNS记录';
+
+  @override
+  String get internalDns => '内部DNS服务器';
+
+  @override
+  String get fallback => '回退';
+
+  @override
+  String get fallbackDesc => '如果此规则所使用的节点失败，使用以下回退。每个回退都有一些条件，只有当所有条件都成立时，回退才会被使用。';
+
+  @override
+  String get rewriteIpToDomain => '将IP重写为域名';
+
+  @override
+  String get rewriteIpToDomainDesc => '如果请求地址是IP，并且有嗅探域名，则使用嗅探域名作为请求地址。为了应对由DNS污染而导致的失败';
+
+  @override
+  String get resultIpSet => '结果IP集合';
+
+  @override
+  String get resultIpSetDesc => 'A/AAAA记录的IP不在集合内时将被丢弃';
+
+  @override
+  String get inverse => '反向';
+
+  @override
+  String get automaticallyAddFallbackDomain => '自动添加回退域名';
+
+  @override
+  String get automaticallyAddFallbackDomainDesc => '如果一个连接最初是直连，但是失败了，然后它回退到代理并成功，自动将域名添加到名为“Fallback”的域名集合中。该集合在GFW模式中被使用';
+
+  @override
+  String get fallbackTimeout => '回退超时时间';
+
+  @override
+  String get fallbackTimeoutDesc => '在有回退的情况下，如果一个连接在回退超时时间内没有收到任何返回数据，判定此连接失败，开始回退。为0即不启用功能';
+
+  @override
+  String get directDialingTimeout => '直连拨号超时时间';
+
+  @override
+  String get directDialingTimeoutHint => '直连拨号超时时间。如果在拨号超时时间内无法与目的地建立TCP连接，则连接失败。';
+
+  @override
+  String get globalDialTimeout => '节点拨号超时时间';
+
+  @override
+  String get globalDialTimeoutHint => '代理连接拨号超时时间。如果在拨号超时时间内无法与代理节点建立TCP连接，则连接失败。';
+
+  @override
+  String get reset => '重置';
+
+  @override
+  String get resetConfirmMessage => '这将重置当前数据库和偏好设置。您的现有数据将丢失。此操作无法撤销。';
+
+  @override
+  String get resetAction => '重置';
+
+  @override
+  String get resetCompletedTitle => '重置完成';
+
+  @override
+  String get resetCompletedMessage => '数据库和偏好设置已重置。请重启 VX 继续使用。';
+
+  @override
+  String resetFailed(String error) {
+    return '重置失败: $error';
+  }
+
+  @override
+  String get policyTimeout => '策略超时';
+
+  @override
+  String get policyTimeoutNoTimeoutHint => '0 表示不超时';
+
+  @override
+  String get policyTcpIdleTimeout => 'TCP 空闲超时';
+
+  @override
+  String get policyTcpIdleTimeoutDesc => '在该时间段内没有上行或下行数据，连接将被关闭。';
+
+  @override
+  String get policyUdpIdleTimeout => 'UDP 空闲超时';
+
+  @override
+  String get policyUdpIdleTimeoutDesc => '在该时间段内没有上行数据，连接将被关闭。';
+
+  @override
+  String get policyUpLinkOnlyTimeout => '仅上行超时';
+
+  @override
+  String get policyUpLinkOnlyTimeoutDesc =>
+      '当 TCP 连接的下行流结束后，空闲超时将切换为该值。';
+
+  @override
+  String get policyDownLinkOnlyTimeout => '仅下行超时';
+
+  @override
+  String get policyDownLinkOnlyTimeoutDesc =>
+      '当 TCP 连接的上行流结束后，空闲超时将切换为该值。';
+
+  @override
+  String get tutorial => '教程';
 }

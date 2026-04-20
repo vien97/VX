@@ -26,6 +26,7 @@ import 'package:vx/app/server/vx_bloc.dart';
 import 'package:vx/app/server/vx_config.dart';
 import 'package:vx/app/server/vx_status.dart';
 import 'package:vx/common/extension.dart';
+import 'package:vx/common/version.dart';
 import 'package:vx/data/database.dart';
 import 'package:vx/main.dart';
 import 'package:vx/utils/logger.dart';
@@ -35,8 +36,11 @@ import 'package:vx/widgets/circular_progress_indicator.dart';
 import 'package:vx/widgets/form_dialog.dart';
 
 class ServerDetail extends StatefulWidget {
-  const ServerDetail(
-      {super.key, required this.server, this.fullScreen = false});
+  const ServerDetail({
+    super.key,
+    required this.server,
+    this.fullScreen = false,
+  });
   final SshServer server;
   final bool fullScreen;
   @override
@@ -53,12 +57,13 @@ class _ServerDetailState extends State<ServerDetail> {
     final body = Material(
       child: Center(
         child: BlocProvider(
-            create: (context) => VXBloc(
-                xapiClient: context.read<XApiClient>(),
-                server: widget.server,
-                outboundBloc: context.read<OutboundBloc>())
-              ..add(VXBlocInitialEvent()),
-            child: Builder(builder: (context) {
+          create: (context) => VXBloc(
+            xapiClient: context.read<XApiClient>(),
+            server: widget.server,
+            outboundBloc: context.read<OutboundBloc>(),
+          )..add(VXBlocInitialEvent()),
+          child: Builder(
+            builder: (context) {
               return Stack(
                 children: [
                   Column(
@@ -67,57 +72,60 @@ class _ServerDetailState extends State<ServerDetail> {
                         children: [
                           if (!widget.fullScreen)
                             IconButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                icon: const Icon(
-                                    Icons.arrow_back_ios_new_rounded)),
+                              onPressed: () => Navigator.of(context).pop(),
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                              ),
+                            ),
                           const Spacer(),
                           SegmentedButton<ServerDetailSegment>(
                             segments: [
                               ButtonSegment(
                                 value: ServerDetailSegment.overview,
                                 label: Text(
-                                    AppLocalizations.of(context)!.overview),
+                                  AppLocalizations.of(context)!.overview,
+                                ),
                               ),
                               ButtonSegment(
                                 value: ServerDetailSegment.vx,
                                 label: Text(
-                                    AppLocalizations.of(context)!.vxCoreConfig),
+                                  AppLocalizations.of(context)!.vxCoreConfig,
+                                ),
                               ),
                             ],
                             selected: {_segment},
                             onSelectionChanged:
                                 (Set<ServerDetailSegment> set) => setState(() {
-                              _segment = set.first;
-                            }),
+                                  _segment = set.first;
+                                }),
                           ),
                           const Spacer(),
-                          const SizedBox(
-                            width: 40,
-                          )
+                          const SizedBox(width: 40),
                         ],
                       ),
                       const Gap(10),
                       Expanded(
-                          child: IndexedStack(
-                        index: _segment.index,
-                        children: [
-                          _Overview(server: widget.server),
-                          const _VX(),
-                        ],
-                      ))
+                        child: IndexedStack(
+                          index: _segment.index,
+                          children: [
+                            _Overview(server: widget.server),
+                            const _VX(),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                   const _UnsavedChangesBar(),
                 ],
               );
-            })),
+            },
+          ),
+        ),
       ),
     );
     if (widget.fullScreen) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(widget.server.name),
-        ),
+        appBar: AppBar(title: Text(widget.server.name)),
         body: body,
       );
     }
@@ -135,28 +143,62 @@ class _Overview extends StatefulWidget {
 
 class _OverviewState extends State<_Overview> {
   final GlobalKey _serverStatusKey = GlobalKey();
+  bool _shownOldVersionDialog = false;
 
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.of(context).size.isCompact;
-    return Column(
-      children: [
-        if (isCompact)
-          Container(
-            height: 174,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(context).copyWith(
-                dragDevices: {
-                  PointerDeviceKind.touch,
-                  PointerDeviceKind.mouse,
-                  PointerDeviceKind.trackpad,
-                },
+    return BlocListener<VXBloc, VXState>(
+      listenWhen: (previous, current) =>
+          !_shownOldVersionDialog && current is VXInstalledState,
+      listener: (context, state) {
+        if (state is VXInstalledState &&
+            !versionNewerThan(state.version, "1.1.1") &&
+            !_shownOldVersionDialog) {
+          _shownOldVersionDialog = true;
+          final l10n = AppLocalizations.of(context);
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              content: Text(
+                l10n?.vxVersionTooLow ??
+                    'This version is too low, please update.',
               ),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  SizedBox(
+              actions: [
+                FilledButton.tonal(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(AppLocalizations.of(ctx)!.close),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    context.read<VXBloc>().add(VXUpdateEvent());
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Text(AppLocalizations.of(ctx)!.update),
+                ),
+              ],
+            ),
+          );
+        }
+      },
+      child: Column(
+        children: [
+          if (isCompact)
+            Container(
+              height: 174,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                  },
+                ),
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    SizedBox(
                       width: 290,
                       child: Hero(
                         tag: 'server${widget.server.id}',
@@ -165,18 +207,19 @@ class _OverviewState extends State<_Overview> {
                           showStatus: true,
                           serverStatusKey: _serverStatusKey,
                         ),
-                      )),
-                  const Gap(10),
-                  const SizedBox(width: 290, child: VXServiceStatus()),
-                ],
+                      ),
+                    ),
+                    const Gap(10),
+                    const SizedBox(width: 290, child: VXServiceStatus()),
+                  ],
+                ),
               ),
-            ),
-          )
-        else
-          Row(
-            children: [
-              const Spacer(),
-              SizedBox(
+            )
+          else
+            Row(
+              children: [
+                const Spacer(),
+                SizedBox(
                   width: 290,
                   height: 174,
                   child: Hero(
@@ -186,15 +229,21 @@ class _OverviewState extends State<_Overview> {
                       showStatus: true,
                       serverStatusKey: _serverStatusKey,
                     ),
-                  )),
-              const Gap(10),
-              const SizedBox(width: 290, height: 174, child: VXServiceStatus()),
-              const Spacer(),
-            ],
-          ),
-        const Gap(10),
-        Expanded(child: QuickDeploy(server: widget.server))
-      ],
+                  ),
+                ),
+                const Gap(10),
+                const SizedBox(
+                  width: 290,
+                  height: 174,
+                  child: VXServiceStatus(),
+                ),
+                const Spacer(),
+              ],
+            ),
+          const Gap(10),
+          Expanded(child: QuickDeploy(server: widget.server)),
+        ],
+      ),
     );
   }
 }
@@ -233,26 +282,21 @@ class _ServerActionButtonsState extends State<ServerActionButtons> {
                   child: SizedBox(
                     width: 12,
                     height: 12,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
               )
             : IconButton(
                 iconSize: 16,
-                constraints: const BoxConstraints(
-                  minWidth: 16,
-                  minHeight: 16,
-                ),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                 onPressed: () async {
                   setState(() {
                     _isShuttingDown = true;
                   });
                   try {
-                    await context
-                        .read<XApiClient>()
-                        .shutdownServer(widget.server);
+                    await context.read<XApiClient>().shutdownServer(
+                      widget.server,
+                    );
                   } catch (e) {
                     logger.d('shutdown server error', error: e);
                   } finally {
@@ -261,7 +305,8 @@ class _ServerActionButtonsState extends State<ServerActionButtons> {
                     });
                   }
                 },
-                icon: const Icon(Icons.power_settings_new_rounded)),
+                icon: const Icon(Icons.power_settings_new_rounded),
+              ),
         _isRestarting
             ? const SizedBox(
                 width: 32,
@@ -270,26 +315,21 @@ class _ServerActionButtonsState extends State<ServerActionButtons> {
                   child: SizedBox(
                     width: 12,
                     height: 12,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
               )
             : IconButton(
                 iconSize: 16,
-                constraints: const BoxConstraints(
-                  minWidth: 16,
-                  minHeight: 16,
-                ),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                 onPressed: () async {
                   setState(() {
                     _isRestarting = true;
                   });
                   try {
-                    await context
-                        .read<XApiClient>()
-                        .restartServer(widget.server);
+                    await context.read<XApiClient>().restartServer(
+                      widget.server,
+                    );
                   } catch (e) {
                     logger.d('restart server error', error: e);
                   } finally {
@@ -298,7 +338,8 @@ class _ServerActionButtonsState extends State<ServerActionButtons> {
                     });
                   }
                 },
-                icon: const Icon(Icons.restart_alt_rounded)),
+                icon: const Icon(Icons.restart_alt_rounded),
+              ),
         // IconButton(
         //     iconSize: 16,
         //     constraints: const BoxConstraints(
@@ -346,8 +387,11 @@ class _QuickDeployState extends State<QuickDeploy> {
       Form(
         key: formKey,
         child: QuickDeployOptionDetial(
-            option: option, destination: widget.server.address),
+          option: option,
+          destination: widget.server.address,
+        ),
       ),
+      saveText: AppLocalizations.of(context)!.deploy,
       onSave: (BuildContext ctx) {
         if (formKey.currentState?.validate() != true) {
           return;
@@ -364,17 +408,21 @@ class _QuickDeployState extends State<QuickDeploy> {
         }
 
         // Show success dialog with any warnings
-        final hasWarnings = deployResult.bbrError.isNotEmpty ||
+        final hasWarnings =
+            deployResult.bbrError.isNotEmpty ||
             deployResult.firewallError.isNotEmpty;
         final warnings = <String>[];
         if (deployResult.bbrError.isNotEmpty) {
-          warnings.add(rootLocalizations()?.bbrError(deployResult.bbrError) ??
-              'BBR failed to enable');
+          warnings.add(
+            rootLocalizations()?.bbrError(deployResult.bbrError) ??
+                'BBR failed to enable',
+          );
         }
         if (deployResult.firewallError.isNotEmpty) {
           warnings.add(
-              rootLocalizations()?.firewallError(deployResult.firewallError) ??
-                  'Firewall failed to disable');
+            rootLocalizations()?.firewallError(deployResult.firewallError) ??
+                'Firewall failed to disable',
+          );
         }
 
         if (rootNavigationKey.currentState?.mounted == true) {
@@ -389,34 +437,39 @@ class _QuickDeployState extends State<QuickDeploy> {
                 hasWarnings
                     ? AppLocalizations.of(context)!.deploySuccessWarnings
                     : AppLocalizations.of(context)!.deploySuccess(
-                        option.getTitle(context), widget.server.name),
+                        option.getTitle(context),
+                        widget.server.name,
+                      ),
               ),
               content: hasWarnings
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ...warnings.map((warning) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    size: 20,
-                                    color: Theme.of(context).colorScheme.error,
+                        ...warnings.map(
+                          (warning) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  size: 20,
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                                const Gap(8),
+                                Expanded(
+                                  child: Text(
+                                    warning,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                   ),
-                                  const Gap(8),
-                                  Expanded(
-                                    child: Text(
-                                      warning,
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     )
                   : null,
@@ -464,85 +517,86 @@ class _QuickDeployState extends State<QuickDeploy> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const Gap(10),
-                Consumer<Deployer>(builder: (ctx, deployer, child) {
-                  return deployer.deploying.contains(widget.server.id)
-                      ? const SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const SizedBox.shrink();
-                })
+                Consumer<Deployer>(
+                  builder: (ctx, deployer, child) {
+                    return deployer.deploying.contains(widget.server.id)
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const SizedBox.shrink();
+                  },
+                ),
               ],
             ),
           ),
           const Gap(10),
           Expanded(
-            child: LayoutBuilder(builder: (context, c) {
-              final size = MediaQuery.of(context).size;
-              late int counts;
-              int height = 120;
-              if (size.isCompact) {
-                counts = 2;
-              } else if (size.isMedium) {
-                counts = 3;
-              } else if (size.isExpanded) {
-                counts = 4;
-              } else {
-                counts = 5;
-                height = 150;
-              }
-              final cardWidth = (c.maxWidth - 32 - 10 * (counts - 1)) / counts;
-              return GridView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: counts,
-                  childAspectRatio: cardWidth / height,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                ),
-                itemCount: options.length,
-                itemBuilder: (context, index) {
-                  final option = options[index];
-                  return Card(
-                    child: InkWell(
-                      onTap: () => _showDetails(context, option),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              option.getTitle(context),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const Gap(8),
-                            Expanded(
-                              child: Text(
-                                option.getSummary(context),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final size = MediaQuery.of(context).size;
+                late int counts;
+                int height = 120;
+                if (size.isCompact) {
+                  counts = 2;
+                } else if (size.isMedium) {
+                  counts = 3;
+                } else if (size.isExpanded) {
+                  counts = 4;
+                } else {
+                  counts = 5;
+                  height = 150;
+                }
+                final cardWidth =
+                    (c.maxWidth - 32 - 10 * (counts - 1)) / counts;
+                return GridView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: counts,
+                    childAspectRatio: cardWidth / height,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final option = options[index];
+                    return Card(
+                      child: InkWell(
+                        onTap: () => _showDetails(context, option),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                option.getTitle(context),
+                                style: Theme.of(context).textTheme.titleMedium,
                               ),
-                            ),
-                          ],
+                              const Gap(8),
+                              Expanded(
+                                child: Text(
+                                  option.getSummary(context),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              );
-            }),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -551,8 +605,11 @@ class _QuickDeployState extends State<QuickDeploy> {
 }
 
 class QuickDeployOptionDetial extends StatelessWidget {
-  const QuickDeployOptionDetial(
-      {super.key, required this.option, required this.destination});
+  const QuickDeployOptionDetial({
+    super.key,
+    required this.option,
+    required this.destination,
+  });
   final QuickDeployOption option;
   final String destination;
   @override
@@ -577,18 +634,22 @@ class QuickDeployOptionDetial extends StatelessWidget {
         const Gap(16),
         option.getFormWidget(context, destination: destination),
         const Gap(10),
-        StatefulBuilder(builder: (ctx, setState) {
-          return SwitchListTile(
-            title: Text(AppLocalizations.of(context)!.disableOSFirewall),
-            subtitle: Text(AppLocalizations.of(context)!.disableOSFirewallDesc),
-            value: option.disableOSFirewall,
-            onChanged: (value) {
-              setState(() {
-                option.setDisableOSFirewall(value);
-              });
-            },
-          );
-        })
+        StatefulBuilder(
+          builder: (ctx, setState) {
+            return SwitchListTile(
+              title: Text(AppLocalizations.of(context)!.disableOSFirewall),
+              subtitle: Text(
+                AppLocalizations.of(context)!.disableOSFirewallDesc,
+              ),
+              value: option.disableOSFirewall,
+              onChanged: (value) {
+                setState(() {
+                  option.setDisableOSFirewall(value);
+                });
+              },
+            );
+          },
+        ),
       ],
     );
   }
@@ -615,16 +676,17 @@ class _UnsavedChangesBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 600),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outline
-                        .withValues(alpha: 0.2),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.2),
                     width: 1,
                   ),
                 ),
@@ -641,8 +703,8 @@ class _UnsavedChangesBar extends StatelessWidget {
                       child: Text(
                         AppLocalizations.of(context)!.unappliedChanges,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w500,
-                            ),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     const Gap(16),

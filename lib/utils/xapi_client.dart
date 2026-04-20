@@ -27,20 +27,21 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tm/protos/app/api/api.pbgrpc.dart';
-import 'package:tm/protos/common/geo/geo.pb.dart';
-import 'package:tm/protos/common/log/log.pbenum.dart';
-import 'package:tm/protos/protos/geo.pb.dart';
-import 'package:tm/protos/protos/inbound.pb.dart';
-import 'package:tm/protos/protos/outbound.pb.dart';
-import 'package:tm/protos/protos/server/server.pb.dart';
-import 'package:tm/protos/protos/sysproxy.pb.dart';
-import 'package:tm/protos/protos/tls/certificate.pb.dart';
+import 'package:tm/protos/vx/common/geo/geo.pb.dart';
+import 'package:tm/protos/vx/geo/geo.pb.dart';
+import 'package:tm/protos/vx/inbound/inbound.pb.dart';
+import 'package:tm/protos/vx/log/logger.pb.dart';
+import 'package:tm/protos/vx/outbound/outbound.pb.dart';
+import 'package:tm/protos/vx/server.pb.dart';
+import 'package:tm/protos/vx/sysproxy/sysproxy.pb.dart';
+import 'package:tm/protos/vx/transport/security/tls/certificate.pb.dart';
 import 'package:tm/tm.dart';
 import 'package:vx/app/server/add_server.dart';
 import 'package:vx/data/ssh_server.dart';
+import 'package:vx/pref_helper.dart';
 import 'package:vx/utils/channel_credentials.dart';
 import 'package:vx/utils/logger.dart';
-import 'package:vx/common/net.dart';
+import 'package:flutter_common/util/net.dart';
 import 'package:vx/data/database.dart';
 import 'package:vx/main.dart';
 import 'package:vx/utils/path.dart';
@@ -55,8 +56,8 @@ class XApiClient {
   final Completer<void> _completer = Completer();
 
   XApiClient(SharedPreferences pref, FlutterSecureStorage storage)
-      : _pref = pref,
-        _storage = storage;
+    : _pref = pref,
+      _storage = storage;
   final SharedPreferences _pref;
   final FlutterSecureStorage _storage;
 
@@ -72,6 +73,29 @@ class XApiClient {
           return true;
         },
       );
+      late LoggerConfig logConfig;
+      if (isProduction()) {
+        if (_pref.enableDebugLog) {
+          logConfig = LoggerConfig(
+            logLevel: Level.DEBUG,
+            consoleWriter: true,
+            showCaller: true,
+            showColor: true,
+            filePath: await getDebugFlutterLogDir().then(
+              (value) => join(value.path, 'vx-go.txt'),
+            ),
+          );
+        } else {
+          logConfig = LoggerConfig(logLevel: Level.DISABLED);
+        }
+      } else {
+        logConfig = LoggerConfig(
+          logLevel: Level.DEBUG,
+          consoleWriter: true,
+          showCaller: true,
+          showColor: true,
+        );
+      }
       if (Platform.isMacOS ||
           (Platform.isIOS) ||
           Platform.isAndroid ||
@@ -83,27 +107,20 @@ class XApiClient {
           listenAddress = '127.0.0.1:21426';
         } else {
           final dir = (await getApplicationDocumentsDirectory()).path;
-          listenAddress = join(
-            dir,
-            'xapi.sock',
-          );
+          listenAddress = join(dir, 'xapi.sock');
         }
-        late LogLevel logLevel;
-        if (isProduction()) {
-          logLevel = LogLevel.NONE;
-        } else {
-          logLevel = LogLevel.DEBUG;
-        }
+
         final config = ApiServerConfig(
-            logLevel: logLevel.value,
-            dbPath: await getDbPath(_pref),
-            listenAddr: listenAddress,
-            bindToDefaultNic:
-                (Platform.isIOS || Platform.isMacOS || Platform.isLinux),
-            tunName: Platform.isIOS || Platform.isMacOS
-                ? "utun"
-                : XConfigHelper.tunName,
-            geoipPath: await getGeoIPPath());
+          logConfig: logConfig,
+          // dbPath: await getDbPath(_pref),
+          listenAddr: listenAddress,
+          bindToDefaultNic:
+              (Platform.isIOS || Platform.isMacOS || Platform.isLinux),
+          tunName: Platform.isIOS || Platform.isMacOS
+              ? "utun"
+              : XConfigHelper.tunName,
+          geoipPath: await getGeoIPPath(),
+        );
         config.clientCert = certificate.certificate;
         if (Platform.isIOS || Platform.isMacOS) {
           await darwinHostApi!.startXApiServer(config.writeToBuffer());
@@ -117,8 +134,10 @@ class XApiClient {
           for (var i = 0; i < cfgRaw.length; i++) {
             cfgPtr[i] = cfgRaw[i];
           }
-          final errStrPtr =
-              bindings.StartApiServer(cfgPtr.cast<Void>(), cfgRaw.length);
+          final errStrPtr = bindings.StartApiServer(
+            cfgPtr.cast<Void>(),
+            cfgRaw.length,
+          );
           final errStr = errStrPtr.cast<Utf8>().toDartString();
           bindings.FreeString(errStrPtr);
           calloc.free(cfgPtr);
@@ -127,14 +146,19 @@ class XApiClient {
           }
         }
         if (listenAddress.startsWith('127.0.0.1:')) {
-          final channelOptions =
-              ChannelOptions(credentials: channelCredentials);
-          _grpcChannel = ClientChannel(InternetAddress('127.0.0.1'),
-              port: 21426, options: channelOptions);
+          final channelOptions = ChannelOptions(
+            credentials: channelCredentials,
+          );
+          _grpcChannel = ClientChannel(
+            InternetAddress('127.0.0.1'),
+            port: 21426,
+            options: channelOptions,
+          );
         } else {
           _grpcChannel = ClientChannel(
-              InternetAddress(listenAddress, type: InternetAddressType.unix),
-              options: ChannelOptions(credentials: channelCredentials));
+            InternetAddress(listenAddress, type: InternetAddressType.unix),
+            options: ChannelOptions(credentials: channelCredentials),
+          );
         }
         _xApiClient = ApiClient(_grpcChannel);
       }
@@ -149,21 +173,23 @@ class XApiClient {
             port = await getUnusedPort();
             listenAddress = '127.0.0.1:$port';
             final config = ApiServerConfig(
-                logLevel:
-                    kDebugMode ? LogLevel.DEBUG.value : LogLevel.ERROR.value,
-                dbPath: await getDbPath(_pref),
-                // bindToDefaultNic: true,
-                listenAddr: listenAddress,
-                tunName: XConfigHelper.tunName,
-                geoipPath: await getGeoIPPath());
+              logConfig: logConfig,
+              // dbPath: await getDbPath(_pref),
+              // bindToDefaultNic: true,
+              listenAddr: listenAddress,
+              tunName: XConfigHelper.tunName,
+              geoipPath: await getGeoIPPath(),
+            );
             config.clientCert = certificate.certificate;
             final cfgRaw = config.writeToBuffer();
             final cfgPtr = calloc<Uint8>(cfgRaw.length);
             for (var i = 0; i < cfgRaw.length; i++) {
               cfgPtr[i] = cfgRaw[i];
             }
-            final errStrPtr =
-                bindings.StartApiServer(cfgPtr.cast<Void>(), cfgRaw.length);
+            final errStrPtr = bindings.StartApiServer(
+              cfgPtr.cast<Void>(),
+              cfgRaw.length,
+            );
             final errStr = errStrPtr.cast<Utf8>().toDartString();
             bindings.FreeString(errStrPtr);
             calloc.free(cfgPtr);
@@ -178,11 +204,15 @@ class XApiClient {
         }
         if (!success) {
           throw Exception(
-              "xapi client start failed, no available port found in 5 attempts");
+            "xapi client start failed, no available port found in 5 attempts",
+          );
         }
         final channelOptions = ChannelOptions(credentials: channelCredentials);
-        _grpcChannel = ClientChannel(InternetAddress('127.0.0.1'),
-            port: port, options: channelOptions);
+        _grpcChannel = ClientChannel(
+          InternetAddress('127.0.0.1'),
+          port: port,
+          options: channelOptions,
+        );
         _xApiClient = ApiClient(_grpcChannel);
         logger.d("xapi client started");
       }
@@ -200,11 +230,18 @@ class XApiClient {
       // TODO: show error dialog
       logger.e("xapi client init error", error: e);
       reportError("xapi client init error", e);
+      // disk I/O error: no such file or directory
+      if (e.toString().contains('disk I/O error: no such file or directory')) {
+        //TODO: recreate database
+      }
       if (rootNavigationKey.currentContext != null) {
-        dialog(rootLocalizations()?.fatalError(
+        fatalMessageDialog(
+          rootLocalizations()?.fatalError(
                 rootLocalizations()?.failedToInitGrpcClient(e.toString()) ??
-                    e.toString()) ??
-            e.toString());
+                    e.toString(),
+              ) ??
+              e.toString(),
+        );
       } else {
         fatalErrorMessage = e.toString();
       }
@@ -229,8 +266,9 @@ class XApiClient {
         throw Exception(errStr);
       }
       final certificateBytesPointer = ret.r0;
-      final certificateBytes =
-          certificateBytesPointer.cast<Uint8>().asTypedList(ret.r1);
+      final certificateBytes = certificateBytesPointer
+          .cast<Uint8>()
+          .asTypedList(ret.r1);
       final certificate = Certificate.fromBuffer(certificateBytes);
       bindings.FreeBytes(certificateBytesPointer);
       return certificate;
@@ -245,8 +283,9 @@ class XApiClient {
         throw Exception(errStr);
       }
       final certificateBytesPointer = ret.r0;
-      final certificateBytes =
-          certificateBytesPointer.cast<Uint8>().asTypedList(ret.r1);
+      final certificateBytes = certificateBytesPointer
+          .cast<Uint8>()
+          .asTypedList(ret.r1);
       final certificate = Certificate.fromBuffer(certificateBytes);
       bindings.FreeBytes(certificateBytesPointer);
       return certificate;
@@ -268,7 +307,8 @@ class XApiClient {
 
   /// Try to get handler usability, retry once if failed
   Future<HandlerUsableResponse> handlerUsable(
-      HandlerUsableRequest request) async {
+    HandlerUsableRequest request,
+  ) async {
     await _completer.future;
     return await _xApiClient.handlerUsable(request);
   }
@@ -279,7 +319,8 @@ class XApiClient {
   }
 
   Future<ResponseStream<SpeedTestResponse>> speedTest(
-      SpeedTestRequest request) async {
+    SpeedTestRequest request,
+  ) async {
     await _completer.future;
     return _xApiClient.speedTest(request);
   }
@@ -302,51 +343,52 @@ class XApiClient {
 
   //TODO:
   Future<ResponseStream<MonitorServerResponse>> monitorServer(
-      SshServer server) async {
+    SshServer server,
+  ) async {
     final config = await _sshServerToServerSshConfig(server);
-    return _xApiClient.monitorServer(MonitorServerRequest(
-      interval: 5,
-      sshConfig: config,
-    ));
+    return _xApiClient.monitorServer(
+      MonitorServerRequest(interval: 5, sshConfig: config),
+    );
   }
 
   Future<VproxyStatusResponse> vproxyStatus(SshServer server) async {
     await _completer.future;
     final config = await _sshServerToServerSshConfig(server);
-    return await _xApiClient.vproxyStatus(VproxyStatusRequest(
-      sshConfig: config,
-    ));
+    return await _xApiClient.vproxyStatus(
+      VproxyStatusRequest(sshConfig: config),
+    );
   }
 
   Future<ServerConfig> serverConfig(SshServer server) async {
     await _completer.future;
     final config = await _sshServerToServerSshConfig(server);
-    return (await _xApiClient.serverConfig(ServerConfigRequest(
-      sshConfig: config,
-    )))
-        .config;
+    return (await _xApiClient.serverConfig(
+      ServerConfigRequest(sshConfig: config),
+    )).config;
   }
 
   Future<void> updateServerConfig(SshServer server, ServerConfig config) async {
     await _completer.future;
     final sshConfig = await _sshServerToServerSshConfig(server);
-    await _xApiClient.updateServerConfig(UpdateServerConfigRequest(
-      sshConfig: sshConfig,
-      config: config,
-    ));
+    await _xApiClient.updateServerConfig(
+      UpdateServerConfigRequest(sshConfig: sshConfig, config: config),
+    );
   }
 
-  Future<List<OutboundHandlerConfig>> convertInboundToOutbound(SshServer server,
-      {ProxyInboundConfig? inbound,
-      MultiProxyInboundConfig? multiInbound}) async {
+  Future<List<OutboundHandlerConfig>> convertInboundToOutbound(
+    SshServer server, {
+    ProxyInboundConfig? inbound,
+    MultiProxyInboundConfig? multiInbound,
+  }) async {
     await _completer.future;
-    final response = await _xApiClient
-        .inboundConfigToOutboundConfig(InboundConfigToOutboundConfigRequest(
-      serverAddress: server.address,
-      serverName: server.name,
-      inbound: inbound,
-      multiInbound: multiInbound,
-    ));
+    final response = await _xApiClient.inboundConfigToOutboundConfig(
+      InboundConfigToOutboundConfigRequest(
+        serverAddress: server.address,
+        serverName: server.name,
+        inbound: inbound,
+        multiInbound: multiInbound,
+      ),
+    );
     return response.outboundConfigs;
   }
 
@@ -360,14 +402,16 @@ class XApiClient {
   }) async {
     await _completer.future;
     final config = await _sshServerToServerSshConfig(server);
-    await _xApiClient.vX(VXRequest(
-      sshConfig: config,
-      start: start,
-      stop: stop,
-      restart: restart,
-      update: update,
-      uninstall: uninstall,
-    ));
+    await _xApiClient.vX(
+      VXRequest(
+        sshConfig: config,
+        start: start,
+        stop: stop,
+        restart: restart,
+        update: update,
+        uninstall: uninstall,
+      ),
+    );
   }
 
   Future<ServerSshConfig> _sshServerToServerSshConfig(SshServer server) async {
@@ -375,8 +419,9 @@ class XApiClient {
     if (serverSecureStorageJson == null) {
       throw Exception('Auth secret not found');
     }
-    final serverSecureStorage =
-        SshServerSecureStorage.fromJson(jsonDecode(serverSecureStorageJson));
+    final serverSecureStorage = SshServerSecureStorage.fromJson(
+      jsonDecode(serverSecureStorageJson),
+    );
     String? passphrase = serverSecureStorage.passphrase;
     List<int>? sshKey;
     if (server.authMethod == AuthMethod.sshKey) {
@@ -385,21 +430,26 @@ class XApiClient {
       } else if (serverSecureStorage.sshKeyPath != null) {
         sshKey = await File(serverSecureStorage.sshKeyPath!).readAsBytes();
       } else {
-        assert(serverSecureStorage.globalSshKeyName != null &&
-            serverSecureStorage.globalSshKeyName!.isNotEmpty);
+        assert(
+          serverSecureStorage.globalSshKeyName != null &&
+              serverSecureStorage.globalSshKeyName!.isNotEmpty,
+        );
         final commonSshKeySecureStorageJson = await _storage.read(
-            key: 'common_ssh_key_${serverSecureStorage.globalSshKeyName}');
+          key: 'common_ssh_key_${serverSecureStorage.globalSshKeyName}',
+        );
         if (commonSshKeySecureStorageJson == null) {
           throw Exception('Common ssh key not found');
         }
         final commonSshKeySecureStorage = SshServerSecureStorage.fromJson(
-            jsonDecode(commonSshKeySecureStorageJson));
+          jsonDecode(commonSshKeySecureStorageJson),
+        );
         passphrase = commonSshKeySecureStorage.passphrase;
         if (commonSshKeySecureStorage.sshKey != null) {
           sshKey = utf8.encode(commonSshKeySecureStorage.sshKey!);
         } else if (commonSshKeySecureStorage.sshKeyPath != null) {
-          sshKey =
-              await File(commonSshKeySecureStorage.sshKeyPath!).readAsBytes();
+          sshKey = await File(
+            commonSshKeySecureStorage.sshKeyPath!,
+          ).readAsBytes();
         } else {
           throw Exception('invalid common ssh key');
         }
@@ -410,20 +460,23 @@ class XApiClient {
         serverSecureStorage.pubKey!.isNotEmpty) {
       serverPubKey = base64Decode(serverSecureStorage.pubKey!);
     } else {
-      final response =
-          await _xApiClient.getServerPublicKey(GetServerPublicKeyRequest(
-              sshConfig: ServerSshConfig(
-        address: server.address,
-        port: serverSecureStorage.port,
-        username: serverSecureStorage.user,
-        sudoPassword: serverSecureStorage.password,
-        sshKey: sshKey,
-        sshKeyPassphrase: passphrase,
-      )));
+      final response = await _xApiClient.getServerPublicKey(
+        GetServerPublicKeyRequest(
+          sshConfig: ServerSshConfig(
+            address: server.address,
+            port: serverSecureStorage.port,
+            username: serverSecureStorage.user,
+            sudoPassword: serverSecureStorage.password,
+            sshKey: sshKey,
+            sshKeyPassphrase: passphrase,
+          ),
+        ),
+      );
       serverSecureStorage.pubKey = base64Encode(response.publicKey);
       _storage.write(
-          key: server.storageKey,
-          value: jsonEncode(serverSecureStorage.toJson()));
+        key: server.storageKey,
+        value: jsonEncode(serverSecureStorage.toJson()),
+      );
       serverPubKey = response.publicKey;
     }
 
@@ -439,7 +492,8 @@ class XApiClient {
   }
 
   Future<UpdateSubscriptionResponse> updateSubscriptions(
-      UpdateSubscriptionRequest request) async {
+    UpdateSubscriptionRequest request,
+  ) async {
     await _completer.future;
 
     return await _xApiClient.updateSubscription(request);
@@ -450,19 +504,28 @@ class XApiClient {
     // return await _xApiClient.updateSubscription(req);
   }
 
-//TODO: simplify more for category-games:cn
+  Future<FetchSubscriptionContentResponse> fetchSubscriptionContent(
+    FetchSubscriptionContentRequest request,
+  ) async {
+    await _completer.future;
+    return await _xApiClient.fetchSubscriptionContent(request);
+  }
+
+  //TODO: simplify more for category-games:cn
   Future<void> processGeoFiles() async {
     await _completer.future;
     final geositePath = await getGeositePath();
     final geoIpPath = await getGeoIPPath();
-    await _xApiClient.processGeoFiles(ProcessGeoFilesRequest(
-      geoipPath: geoIpPath,
-      geositePath: geositePath,
-      dstGeoipPath: await getSimplifiedGeoIPPath(),
-      dstGeositePath: await getSimplifiedGeositePath(),
-      geositeCodes: simplifiedGeoSiteCodes,
-      geoipCodes: simplifiedGeoIpCodes,
-    ));
+    await _xApiClient.processGeoFiles(
+      ProcessGeoFilesRequest(
+        geoipPath: geoIpPath,
+        geositePath: geositePath,
+        dstGeoipPath: await getSimplifiedGeoIPPath(),
+        dstGeositePath: await getSimplifiedGeositePath(),
+        geositeCodes: simplifiedGeoSiteCodes,
+        geoipCodes: simplifiedGeoIpCodes,
+      ),
+    );
   }
 
   Future<DecodeResponse> decode(String data) async {
@@ -492,16 +555,18 @@ class XApiClient {
 
   Future<GenerateCertResponse> generateCert(String domain) async {
     await _completer.future;
-    final response =
-        await _xApiClient.generateCert(GenerateCertRequest(domain: domain));
+    final response = await _xApiClient.generateCert(
+      GenerateCertRequest(domain: domain),
+    );
     return response;
   }
 
   Future<String?> extractCertDomain(String cert) async {
     try {
       await _completer.future;
-      final response = await _xApiClient
-          .getCertDomain(GetCertDomainRequest(cert: utf8.encode(cert)));
+      final response = await _xApiClient.getCertDomain(
+        GetCertDomainRequest(cert: utf8.encode(cert)),
+      );
       return response.domain;
     } catch (e) {
       logger.e('extractCertDomain error', error: e);
@@ -534,48 +599,55 @@ class XApiClient {
 
   Future<bool> defaultNICHasGlobalV6() async {
     await _completer.future;
-    final response =
-        await _xApiClient.defaultNICHasGlobalV6(DefaultNICHasGlobalV6Request());
+    final response = await _xApiClient.defaultNICHasGlobalV6(
+      DefaultNICHasGlobalV6Request(),
+    );
     logger.i('defaultNICHasGlobalV6: ${response.hasGlobalV6}');
 
     return response.hasGlobalV6;
   }
 
   Future<ParseClashRuleFileResponse> parseClashRuleFile(
-      List<int> content) async {
+    List<int> content,
+  ) async {
     await _completer.future;
-    return await _xApiClient
-        .parseClashRuleFile(ParseClashRuleFileRequest(content: content));
+    return await _xApiClient.parseClashRuleFile(
+      ParseClashRuleFileRequest(content: content),
+    );
   }
 
   Future<List<CIDR>> parseGeoIPConfig(GeoIPConfig config) async {
     await _completer.future;
-    return (await _xApiClient
-            .parseGeoIPConfig(ParseGeoIPConfigRequest(config: config)))
-        .cidrs;
+    return (await _xApiClient.parseGeoIPConfig(
+      ParseGeoIPConfigRequest(config: config),
+    )).cidrs;
   }
 
   Future<List<Domain>> parseGeositeConfig(GeositeConfig config) async {
     await _completer.future;
-    return (await _xApiClient
-            .parseGeositeConfig(ParseGeositeConfigRequest(config: config)))
-        .domains;
+    return (await _xApiClient.parseGeositeConfig(
+      ParseGeositeConfigRequest(config: config),
+    )).domains;
   }
 
   Future<(String, String)> generateX25519KeyPair() async {
     await _completer.future;
-    final response =
-        await _xApiClient.generateX25519KeyPair(GenerateX25519KeyPairRequest());
+    final response = await _xApiClient.generateX25519KeyPair(
+      GenerateX25519KeyPairRequest(),
+    );
     return (response.pub, response.pri);
   }
 
   Future<void> setSystemProxy(SysProxyConfig config) async {
     await _completer.future;
-    await _xApiClient.startMacSystemProxy(StartMacSystemProxyRequest(
+    await _xApiClient.startMacSystemProxy(
+      StartMacSystemProxyRequest(
         socksProxyAddress: '127.0.0.1',
         socksProxyPort: config.socksProxyPort,
         httpProxyAddress: '127.0.0.1',
-        httpProxyPort: config.httpProxyPort));
+        httpProxyPort: config.httpProxyPort,
+      ),
+    );
   }
 
   Future<void> stopSystemProxy() async {
@@ -584,25 +656,31 @@ class XApiClient {
   }
 
   Future<void> closeDb() async {
-    await _completer.future;
-    await _xApiClient.closeDb(CloseDbRequest());
+    // await _completer.future;
+    // await _xApiClient.closeDb(CloseDbRequest());
   }
 
   Future<void> openDb() async {
-    await _completer.future;
-    await _xApiClient.openDb(OpenDbRequest(path: await getDbPath(_pref)));
+    // await _completer.future;
+    // await _xApiClient.openDb(OpenDbRequest(path: await getDbPath(_pref)));
   }
 
   Future<ToUrlResponse> toUrl(List<OutboundHandlerConfig> configs) async {
     await _completer.future;
-    final response =
-        await _xApiClient.toUrl(ToUrlRequest(outboundConfogs: configs));
+    final response = await _xApiClient.toUrl(
+      ToUrlRequest(outboundConfogs: configs),
+    );
     return response;
   }
 
   Future<GenerateECHResponse> generateECHResponse(String domain) async {
     await _completer.future;
     return await _xApiClient.generateECH(GenerateECHRequest(domain: domain));
+  }
+
+  Future<void> setLog(LoggerConfig logConfig) async {
+    await _completer.future;
+    await _xApiClient.setLog(logConfig);
   }
 }
 
@@ -621,7 +699,7 @@ const simplifiedGeoSiteCodes = [
   'tld-cn',
   'private',
   'category-games',
-  'gfw'
+  'gfw',
 ];
 const simplifiedGeoIpCodes = [
   'cn',

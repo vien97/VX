@@ -72,6 +72,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get add => 'Add';
 
   @override
+  String get addToHomeScreen => 'Add to home screen';
+
+  @override
   String get name => 'Name';
 
   @override
@@ -115,6 +118,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subscription => 'Subscription';
+
+  @override
+  String get autoUpdate => 'Auto Update';
 
   @override
   String get unknown => 'Unknown';
@@ -309,7 +315,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get testArea => 'Test Area';
 
   @override
-  String get autoUpdate => 'Automatically Download New Version';
+  String get autoDownload => 'Automatically Download New Version';
 
   @override
   String get unableToGetNodes => 'Failed to get nodes, your pasteboard does not contain a subscription url that VX can parse';
@@ -370,6 +376,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get enableInAuto => 'Enable in auto mode';
+
+  @override
+  String get homeCustomizeDragHint => 'Drag cards to reorder. Hidden cards move to the bottom tray.';
+
+  @override
+  String get homeCustomizeResetOrder => 'Reset order';
+
+  @override
+  String get homeCustomizeHiddenTitle => 'Hidden';
+
+  @override
+  String get homeCustomizeDropHere => 'Drop here to add at bottom';
+
+  @override
+  String get homeCustomizeMergeWith => 'Merge with…';
+
+  @override
+  String get homeCustomizeNoMergeTargets => 'No mergeable widgets';
+
+  @override
+  String get compact => 'Compact';
+
+  @override
+  String get medium => 'Medium';
+
+  @override
+  String get large => 'Large';
 
   @override
   String get showClient => 'Show Client';
@@ -602,7 +635,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get partialNodes => 'Partial Nodes';
 
   @override
-  String get nodeGroup => 'Node Group';
+  String get nodeGroup => 'Group';
 
   @override
   String get lowestLatency => 'Lowest Latency';
@@ -689,6 +722,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ipToDomain => 'IP -> Domain';
 
   @override
+  String get showSessionOngoingIndicator => 'Show session ongoing indicator';
+
+  @override
+  String get hideSessionOngoingIndicator => 'Hide session ongoing indicator';
+
+  @override
+  String get showRealtimeUsage => 'Show realtime usage';
+
+  @override
+  String get hideRealtimeUsage => 'Hide realtime usage';
+
+  @override
   String get proFeatureDescription => 'This is a Pro feature. Upgrade to Pro to unlock all features';
 
   @override
@@ -755,8 +800,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get startFailed => 'Failed to start';
 
   @override
-  String startFailedWithReason(String reason) {
-    return 'Failed to start: $reason';
+  String startFailedWithReason(String reason, String stackTrace) {
+    return 'Failed to start: $reason. StackTrace: $stackTrace';
   }
 
   @override
@@ -1433,7 +1478,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dnsRule => 'DNS Rules';
 
   @override
-  String get dnsRuleNameGfwProxyFake => 'GFW Mode Proxy Domains(A/AAAA)';
+  String get dnsRuleNameGfwProxyFake => 'GFW Mode Proxy Domains & Non CN Domains(A/AAAA)';
 
   @override
   String get dnsRuleNameGfwProxy => 'GFW Mode Proxy Domains';
@@ -1704,6 +1749,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get currentBackup => 'Current Backup';
 
   @override
+  String get exportToFile => 'Export to file';
+
+  @override
   String get uploadDb => 'Upload';
 
   @override
@@ -1776,7 +1824,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rpmTunNotice => 'When TUN is on, Reverse Path Forwarding mode will be set to Loose(2) and reset to what it was when disconnect. You can go to the following website to learn about Reverse Path Forwarding';
 
   @override
-  String get internalDnsDesc => 'Internal DNS servers are used to resolve domains when outbounds are dialing. There are two of them, one is internal-dns-proxy, which uses the Proxy selector to connect to 1.1.1.1; the other is internal-dns-direct, which uses directly connect to 223.5.5.5 and 1.1.1.1. The internal-dns-direct is used first, if it failed, the internal-dns-proxy will be used.';
+  String get internalDnsDesc => 'Internal DNS servers are mainly used to resolve domains when outbounds are dialing. They will be used from left to right until one of them succeeds.';
 
   @override
   String get nodeSetDesc => 'There is a small domain set named \"__node__\" which contains domains and SNIs of all nodes. There is also a small IP set named \"__node__\" which contains IPs of all nodes.';
@@ -2140,6 +2188,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get geoUpdateInterval => 'Update Interval';
 
   @override
+  String get geoUpdateNow => 'Update Now';
+
+  @override
+  String get geoRestoreToDefault => 'Restore to Default';
+
+  @override
+  String get geoUpdateSuccess => 'Geo update success';
+
+  @override
   String get interval => 'Interval';
 
   @override
@@ -2152,7 +2209,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shareWithOtherClientsNotice => 'There might be incompatibility issues';
 
   @override
-  String get domainStrategyDesc => 'Determine how to connect to server. PreferIPv4: use IPv4, if failed, use IPv6; PreferIPv6: use IPv6, if failed, use IPv4; IPv4Only: only try IPv4; IPv6Only: only try IPv6';
+  String get homeEditStandardLayout => 'Standard';
+
+  @override
+  String get homeEditCustomizableLayout => 'Customizable';
+
+  @override
+  String get domainStrategyDesc => 'Determine how to resolve domains when dialing. PreferIPv4: lookup both IPv4 and IPv6(if default nic support 6), wait for the two queries to complete, then try IPv4s, if failed, try IPv6s; PreferIPv6: lookup both IPv4 and IPv6(if default nic support 6), wait for the two queries to complete, then try IPv6s first, if failed, use IPv4; IPv4Only: only lookup IPv4; IPv6Only: only lookup IPv6; Speed: lookup both A and AAAA(if default nic support 6), use the first returned result (might be IPv4s or IPv6s), if failed, use the other IPs.';
 
   @override
   String get uotDesc => 'Use TCP to transport UDP (Sagernet UDP over TCP v2 protocol). The server must also support it';
@@ -2165,6 +2228,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vxNotInstalled => 'VX-core is not installed';
+
+  @override
+  String get vxVersionTooLow => 'VX-core version is too low, please update to the latest version';
 
   @override
   String get howToUseVX => 'For instructions, check our YouTube channel';
@@ -2266,4 +2332,109 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addDnsRecord => 'Add DNS Record';
+
+  @override
+  String get internalDns => 'Internal DNS Servers';
+
+  @override
+  String get fallback => 'Fallback';
+
+  @override
+  String get fallbackDesc => 'If the handler picked for this rule failed, use the following fallbacks. Each fallback has a list of conditions, the fallback will be used only if all conditions are true.';
+
+  @override
+  String get rewriteIpToDomain => 'Rewrite IP to Domain';
+
+  @override
+  String get rewriteIpToDomainDesc => 'If the request address is IP, and there is sniffed domain, then use the sniffed domain as the request address. This is a measure for DNS pollution';
+
+  @override
+  String get resultIpSet => 'Result IP Set';
+
+  @override
+  String get resultIpSetDesc => 'A/AAAA records whose IPs are not in the set will be dropped';
+
+  @override
+  String get inverse => 'Inverse';
+
+  @override
+  String get automaticallyAddFallbackDomain => 'Automatically Add Fallback Domain';
+
+  @override
+  String get automaticallyAddFallbackDomainDesc => 'If a connection initially went direct but failed, then it fallbacked to proxy and succeeded, automatically add the domain into a domain set called \"Fallback\"';
+
+  @override
+  String get fallbackTimeout => 'Fallback Timeout';
+
+  @override
+  String get fallbackTimeoutDesc => 'If a connection did not receive any data after the fallback timeout, this connection will start fallbacking and use the next handler to retry.';
+
+  @override
+  String get directDialingTimeout => 'Direct Dialing Timeout';
+
+  @override
+  String get directDialingTimeoutHint => 'The dial timeout for direct connection. If failed to establish TCP connection within this timeout, the connection will fail.';
+
+  @override
+  String get globalDialTimeout => 'Global Dial Timeout';
+
+  @override
+  String get globalDialTimeoutHint => 'The dial timeout for all nodes. If failed to establish TCP connection within this timeout, the connection will fail.';
+
+  @override
+  String get reset => 'Reset';
+
+  @override
+  String get resetConfirmMessage => 'This will reset your preferences and database. Your existing data will be lost. This action cannot be undone.';
+
+  @override
+  String get resetAction => 'Reset';
+
+  @override
+  String get resetCompletedTitle => 'Reset complete';
+
+  @override
+  String get resetCompletedMessage => 'Database and preferences have been reset. Restart VX to continue.';
+
+  @override
+  String resetFailed(String error) {
+    return 'Failed to reset: $error';
+  }
+
+  @override
+  String get policyTimeout => 'Policy Timeout';
+
+  @override
+  String get policyTimeoutNoTimeoutHint => '0 means no timeout';
+
+  @override
+  String get policyTcpIdleTimeout => 'TCP Idle Timeout';
+
+  @override
+  String get policyTcpIdleTimeoutDesc =>
+      'If uplink or downlink data is absent during this period, the connection will be closed.';
+
+  @override
+  String get policyUdpIdleTimeout => 'UDP Idle Timeout';
+
+  @override
+  String get policyUdpIdleTimeoutDesc =>
+      'If no uplink data is received during this period, the connection will be closed.';
+
+  @override
+  String get policyUpLinkOnlyTimeout => 'UpLink Only Timeout';
+
+  @override
+  String get policyUpLinkOnlyTimeoutDesc =>
+      'If a TCP connection\'s downlink stream is done, the idle timeout switches to this value.';
+
+  @override
+  String get policyDownLinkOnlyTimeout => 'DownLink Only Timeout';
+
+  @override
+  String get policyDownLinkOnlyTimeoutDesc =>
+      'If a TCP connection\'s uplink stream is done, the idle timeout switches to this value.';
+
+  @override
+  String get tutorial => 'Tutorial';
 }

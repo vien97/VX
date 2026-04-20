@@ -13,10 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:async';
 import 'dart:io';
 
+import 'package:ads/ad.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_common/common.dart';
 import 'package:flutter_common/services/auto_update.dart';
@@ -26,10 +29,14 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vx/app/home/home.dart';
+import 'package:vx/app/outbound/outbounds_bloc.dart';
 import 'package:vx/app/settings/ads.dart';
 import 'package:vx/app/settings/debug.dart';
 import 'package:vx/app/settings/general/general.dart';
+import 'package:vx/app/x_controller.dart';
 import 'package:vx/common/common.dart';
+import 'package:vx/data/database.dart' as db;
+import 'package:vx/data/database_provider.dart';
 import 'package:vx/iap/pro.dart';
 import 'package:vx/l10n/app_localizations.dart';
 import 'package:vx/app/settings/account.dart';
@@ -42,10 +49,12 @@ import 'package:vx/auth/user.dart';
 import 'package:vx/main.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:vx/pref_helper.dart';
+import 'package:vx/utils/backup_service.dart';
 import 'package:vx/utils/debug.dart';
 import 'package:vx/utils/logger.dart';
 import 'package:vx/utils/path.dart';
-import 'package:vx/widgets/ad.dart';
+import 'package:vx/utils/xapi_client.dart';
 import 'package:vx/widgets/circular_progress_indicator.dart';
 import 'package:vx/widgets/pro_icon.dart';
 import 'package:vx/widgets/pro_promotion.dart';
@@ -61,15 +70,11 @@ enum SettingItem {
   privacyPolicy(icon: Icon(Icons.info), pathSegment: 'privacy'),
   contactUs(icon: Icon(Icons.email_outlined), pathSegment: 'contactUs'),
   openSourceSoftwareNotice(
-      icon: Icon(Icons.code_rounded), pathSegment: 'openSourceSoftwareNotice'),
+    icon: Icon(Icons.code_rounded),
+    pathSegment: 'openSourceSoftwareNotice',
+  ),
   debugLog(icon: Icon(Icons.bug_report_rounded), pathSegment: 'debugLog'),
-  ads(
-      icon: ImageIcon(
-        AssetImage(
-          'assets/icons/ad.png',
-        ),
-      ),
-      pathSegment: 'ads');
+  ads(icon: ImageIcon(AssetImage('assets/icons/ad.png')), pathSegment: 'ads');
 
   final Widget icon;
   final String pathSegment;
@@ -97,13 +102,15 @@ enum SettingItem {
   Widget getIcon(BuildContext context) {
     switch (this) {
       case SettingItem.account:
-        return BlocBuilder<AuthBloc, AuthState>(builder: (ctx, state) {
-          if (state.pro) {
-            return proIcon;
-          } else {
-            return icon;
-          }
-        });
+        return BlocBuilder<AuthBloc, AuthState>(
+          builder: (ctx, state) {
+            if (state.pro) {
+              return proIcon;
+            } else {
+              return icon;
+            }
+          },
+        );
       default:
         return icon;
     }
@@ -155,6 +162,84 @@ enum SettingItem {
 }
 
 const String websiteUrl = 'https://vx.5vnetwork.com';
+
+Future<void> _reset(BuildContext context) async {
+  final pref = context.read<SharedPreferences>();
+  await pref.clear();
+  await _resetDatabaseFromCleanAsset(context);
+}
+
+Future<void> _resetDatabaseFromCleanAsset(BuildContext context) async {
+  final pref = context.read<SharedPreferences>();
+  final backupService = context.read<BackupSerevice>();
+
+  final l10n = AppLocalizations.of(context)!;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(l10n.reset),
+      content: Text(l10n.resetConfirmMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(AppLocalizations.of(context)!.close),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.resetAction),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) {
+    return;
+  }
+
+  try {
+    final blob = await rootBundle.load('assets/clean.db');
+    final buffer = blob.buffer;
+    final tempDbPath = await tempFilePath();
+    await File(
+      tempDbPath,
+    ).writeAsBytes(buffer.asUint8List(blob.offsetInBytes, blob.lengthInBytes));
+    pref.setDatabaseInitialized(false);
+    await backupService.restoreFromLocalBackup(tempDbPath);
+
+    if (context.mounted) {
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.resetCompletedTitle),
+          content: Text(l10n.resetCompletedMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(AppLocalizations.of(dialogContext)!.close),
+            ),
+            FilledButton(
+              onPressed: () async {
+                exitCurrentApp(context.read<XController>());
+              },
+              child: Text(AppLocalizations.of(dialogContext)!.exit),
+            ),
+          ],
+        ),
+      );
+    } else {
+      snack(l10n.resetCompletedMessage);
+    }
+  } catch (e, stackTrace) {
+    logger.e(
+      'Failed to reset database from clean asset',
+      error: e,
+      stackTrace: stackTrace,
+    );
+    snack(l10n.resetFailed(e.toString()));
+  }
+}
 
 class LargeSettingSreen extends StatefulWidget {
   const LargeSettingSreen({super.key, this.settingItem});
@@ -211,8 +296,7 @@ class _LargeSettingSreenState extends State<LargeSettingSreen> {
             },
           ),
         );
-      }).toList()
-        ..addAll(_getBottomButtons(context, user)),
+      }).toList()..addAll(_getBottomButtons(context, user)),
     );
 
     late Widget detail;
@@ -224,7 +308,7 @@ class _LargeSettingSreenState extends State<LargeSettingSreen> {
             context.go('/setting');
           },
           pages: const [
-            MaterialPage(child: GeneralSettingPage(showAppBar: false))
+            MaterialPage(child: GeneralSettingPage(showAppBar: false)),
           ],
         );
       case SettingItem.privacyPolicy:
@@ -256,7 +340,7 @@ class _LargeSettingSreenState extends State<LargeSettingSreen> {
         children: [
           Expanded(child: list),
           const VerticalDivider(),
-          Expanded(child: detail)
+          Expanded(child: detail),
         ],
       ),
     );
@@ -265,9 +349,7 @@ class _LargeSettingSreenState extends State<LargeSettingSreen> {
 
 List<Widget> _getBottomButtons(BuildContext context, User? user) {
   return [
-    const SizedBox(
-      height: 5,
-    ),
+    const SizedBox(height: 5),
     if (context.watch<AuthBloc>().state.isActivated)
       const Align(
         alignment: Alignment.centerLeft,
@@ -287,13 +369,16 @@ List<Widget> _getBottomButtons(BuildContext context, User? user) {
                 onPressed: () {
                   if (useStripe) {
                     launchUrl(
-                        getProPaymentLink(user?.email ?? '', user?.id ?? ''));
+                      getProPaymentLink(user?.email ?? '', user?.id ?? ''),
+                    );
                   } else {
                     showProPromotionDialog(context);
                   }
                 },
-                icon: Icon(Icons.stars_rounded,
-                    color: Theme.of(context).colorScheme.primary),
+                icon: Icon(
+                  Icons.stars_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 label: AutoSizeText(
                   AppLocalizations.of(context)!.upgradeToPermanentPro,
                   maxLines: 1,
@@ -316,9 +401,8 @@ List<Widget> _getBottomButtons(BuildContext context, User? user) {
         ),
       ],
     ),
-    const SizedBox(
-      height: 5,
-    ),
+    const SizedBox(height: 5),
+    
     Row(
       children: [
         if ((!useStripe && (user == null || (user.lifetimePro == false))))
@@ -329,24 +413,27 @@ List<Widget> _getBottomButtons(BuildContext context, User? user) {
                 onPressed: () {
                   if (user == null) {
                     showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                              title: Text(AppLocalizations.of(context)!
-                                  .loginBeforePurchase),
-                              actions: [
-                                TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(),
-                                    child: Text(
-                                        AppLocalizations.of(context)!.close)),
-                              ],
-                            ));
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(
+                          AppLocalizations.of(context)!.loginBeforePurchase,
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(AppLocalizations.of(context)!.close),
+                          ),
+                        ],
+                      ),
+                    );
                   } else {
                     context.read<ProPurchases>().restore();
                   }
                 },
-                icon: Icon(Icons.history_rounded,
-                    color: Theme.of(context).colorScheme.primary),
+                icon: Icon(
+                  Icons.history_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 label: AutoSizeText(
                   AppLocalizations.of(context)!.restoreIAP,
                   maxLines: 1,
@@ -360,12 +447,16 @@ List<Widget> _getBottomButtons(BuildContext context, User? user) {
             padding: const EdgeInsets.symmetric(horizontal: 5),
             child: OutlinedButton.icon(
               onPressed: () async {
+                context.read<SharedPreferences>().setReviewAutoPromptDisabled(
+                  true,
+                );
                 if (await inAppReview.isAvailable()) {
                   inAppReview.requestReview();
                 } else {
                   inAppReview.openStoreListing(
-                      appStoreId: '6744701950',
-                      microsoftStoreId: '9PHBCBZ9R1FX');
+                    appStoreId: '6744701950',
+                    microsoftStoreId: '9PHBCBZ9R1FX',
+                  );
                 }
               },
               label: Text(AppLocalizations.of(context)!.rateApp),
@@ -376,17 +467,39 @@ List<Widget> _getBottomButtons(BuildContext context, User? user) {
       ],
     ),
     const Gap(5),
+    Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: OutlinedButton.icon(
+        onPressed: () {
+          launchUrl(Uri.parse('https://www.youtube.com/@vproxy5vnetwork'));
+        },
+        label: Text(AppLocalizations.of(context)!.tutorial),
+        icon: Image.asset('assets/icons/youtube.png', width: 24, height: 24),
+      ),
+    ),
+    const SizedBox(height: 5),
     if (!applePlatform)
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5),
+        padding: const EdgeInsets.only(left: 5, right: 5, bottom: 5),
         child: OutlinedButton.icon(
-            onPressed: () {
-              launchUrl(Uri.parse(adWantedUrl));
-            },
-            label: Text(AppLocalizations.of(context)!.adWanted),
-            icon: Icon(Icons.campaign_rounded,
-                color: Theme.of(context).colorScheme.primary)),
+          onPressed: () {
+            launchUrl(Uri.parse(adWantedUrl));
+          },
+          label: Text(AppLocalizations.of(context)!.adWanted),
+          icon: Icon(
+            Icons.campaign_rounded,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
       ),
+    Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: OutlinedButton.icon(
+        onPressed: () => _reset(context),
+        icon: Icon(Icons.restart_alt_rounded),
+        label: Text(AppLocalizations.of(context)!.reset),
+      ),
+    ),
     const Gap(5),
     const Version(),
     const Gap(5),
@@ -413,9 +526,9 @@ List<Widget> _getBottomButtons(BuildContext context, User? user) {
               if (!Directory(dstDir).existsSync()) {
                 Directory(dstDir).createSync(recursive: true);
               }
-              final newFile =
-                  await File(await getDbPath(context.read<SharedPreferences>()))
-                      .copy(join(dstDir, "db.sqlite"));
+              final newFile = await File(
+                await getDbPath(context.read<SharedPreferences>()),
+              ).copy(join(dstDir, "db.sqlite"));
               print('copied, ${newFile.path}');
             },
             child: const Text('Copy Database'),
@@ -437,7 +550,13 @@ List<Widget> _getBottomButtons(BuildContext context, User? user) {
               throw StateError('This is test exception');
             },
             child: const Text('Verify Sentry Setup'),
-          )
+          ),
+          ElevatedButton(
+            onPressed: () {
+              throw Exception('This is test exception');
+            },
+            child: const Text('Verify Crashlytics Setup'),
+          ),
         ],
       ),
   ];
@@ -456,10 +575,11 @@ class CompactSettingScreen extends StatelessWidget {
           ? AppBar(
               title: Text(AppLocalizations.of(context)!.settings),
               leading: IconButton(
-                  onPressed: () {
-                    context.pop();
-                  },
-                  icon: const Icon(Icons.arrow_back_rounded)),
+                onPressed: () {
+                  context.pop();
+                },
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
               automaticallyImplyLeading: true,
             )
           : null,
@@ -477,12 +597,11 @@ class CompactSettingScreen extends StatelessWidget {
               subtitle: se.subtitle(context),
               trailing: const Icon(Icons.keyboard_arrow_right_rounded),
               onTap: () async {
-                final currentPath = GoRouterState.of(context).fullPath ??
-                    GoRouter.of(context)
-                        .routeInformationProvider
-                        .value
-                        .uri
-                        .toString();
+                final currentPath =
+                    GoRouterState.of(context).fullPath ??
+                    GoRouter.of(
+                      context,
+                    ).routeInformationProvider.value.uri.toString();
                 final basePath = currentPath.endsWith('/')
                     ? currentPath.substring(0, currentPath.length - 1)
                     : currentPath;
@@ -491,8 +610,7 @@ class CompactSettingScreen extends StatelessWidget {
               },
             ),
           );
-        }).toList()
-          ..addAll(_getBottomButtons(context, user)),
+        }).toList()..addAll(_getBottomButtons(context, user)),
       ),
     );
   }
@@ -513,29 +631,35 @@ class Version extends StatelessWidget {
           final packageInfo = snapshot.data!;
           int count = 0;
           return Center(
-            child: StatefulBuilder(builder: (context, setState) {
-              return GestureDetector(
-                onTap: () async {
-                  setState(() {
-                    print('count: $count');
-                    count++;
-                  });
-                  if (count >= 10) {
-                    demo = true;
-                    App.of(context)?.rebuildAllChildren();
-                    if (Platform.isMacOS) {
-                      await windowManager.setSize(const Size(1280, 800));
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                return GestureDetector(
+                  onLongPress: () {
+                    throw Exception('This is test exception');
+                  },
+                  onTap: () async {
+                    setState(() {
+                      print('count: $count');
+                      count++;
+                    });
+                    if (count >= 10) {
+                      demo = true;
+                      App.of(context)?.rebuildAllChildren();
+                      if (Platform.isMacOS) {
+                        await windowManager.setSize(const Size(1280, 800));
+                      }
+                      context.read<RealtimeSpeedNotifier>().demo();
                     }
-                    context.read<RealtimeSpeedNotifier>().demo();
-                  }
-                },
-                child: Text(
+                  },
+                  child: Text(
                     'Version: ${packageInfo.version} (${packageInfo.buildNumber})',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        )),
-              );
-            }),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              },
+            ),
           );
         }
       },
@@ -571,6 +695,8 @@ class CheckUpdateButton extends StatefulWidget {
 
 class _CheckUpdateButtonState extends State<CheckUpdateButton> {
   bool _checkingUpdate = false;
+  bool _downloadingUpdate = false;
+  String? _version;
 
   @override
   Widget build(BuildContext context) {
@@ -583,7 +709,12 @@ class _CheckUpdateButtonState extends State<CheckUpdateButton> {
           final autoUpdateService = context.read<AutoUpdateService>();
           final release = await autoUpdateService.getLatestRelease();
           if (release != null) {
-            autoUpdateService.updateToRelease(release);
+            setState(() {
+              _checkingUpdate = false;
+              _downloadingUpdate = true;
+              _version = release.version;
+            });
+            await autoUpdateService.updateToRelease(release);
           } else {
             snack(AppLocalizations.of(context)!.noNewVersion);
           }
@@ -592,13 +723,19 @@ class _CheckUpdateButtonState extends State<CheckUpdateButton> {
           snack(e.toString());
         } finally {
           setState(() {
+            _downloadingUpdate = false;
             _checkingUpdate = false;
+            _version = null;
           });
         }
       },
       child: _checkingUpdate
           ? smallCircularProgressIndicator
-          : Text(AppLocalizations.of(context)!.checkUpdate),
+          : Text(
+              _downloadingUpdate
+                  ? AppLocalizations.of(context)!.downloading(_version ?? '')
+                  : AppLocalizations.of(context)!.checkUpdate,
+            ),
     );
   }
 }

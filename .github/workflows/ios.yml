@@ -34,9 +34,9 @@ jobs:
     - name: Download geo
       run: |
         mkdir -p assets/geo
-        curl -O "https://github.com/5VNetwork/process-geo/releases/download/latest/simplified_geoip.dat" 
+        curl -OL "https://github.com/5VNetwork/process-geo/releases/latest/download/simplified_geoip.dat" 
         mv simplified_geoip.dat assets/geo/simplified_geoip.dat
-        curl -O "https://github.com/5VNetwork/process-geo/releases/download/latest/simplified_geosite.dat" 
+        curl -OL "https://github.com/5VNetwork/process-geo/releases/latest/download/simplified_geosite.dat" 
         mv simplified_geosite.dat assets/geo/simplified_geosite.dat
 
 
@@ -81,6 +81,9 @@ jobs:
     - name: Get dependencies
       run: flutter pub get
 
+    - name: Install FlutterFire
+      run: dart pub global activate flutterfire_cli
+
     - name: Pod
       run: |
         cd ios && pod install
@@ -106,7 +109,7 @@ jobs:
       env:
         LOG_KEY: ${{ secrets.LOG_KEY }}
       run: 
-        flutter build ipa --flavor production --dart-define=LOG_KEY=$LOG_KEY --release   --split-debug-info=symbols/darwin
+        flutter build ipa --flavor production --dart-define=LOG_KEY=$LOG_KEY --release --split-debug-info=symbols/darwin
 
     - name: Set version
       id: get_version

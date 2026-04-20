@@ -22,21 +22,28 @@ const proIconExtraSmall = Icon(Icons.stars_rounded, color: XBlue, size: 16);
 const proIconSmall = Icon(Icons.stars_rounded, color: XBlue, size: 18);
 const largeProIcon = Icon(Icons.stars_rounded, color: XBlue, size: 32);
 
+class AppendProIcon extends StatelessWidget {
+  const AppendProIcon({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [child, const SizedBox(width: 4), proIconSmall]);
+  }
+}
+
 class ActivatedIcon extends StatelessWidget {
   const ActivatedIcon({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Chip(
-      avatar: const Icon(
-        Icons.verified_user_rounded,
-        color: XBlue,
+      avatar: const Icon(Icons.verified_user_rounded, color: XBlue),
+      label: Text(
+        AppLocalizations.of(context)!.activated,
+        style: Theme.of(context).textTheme.bodySmall,
       ),
-      label: Text(AppLocalizations.of(context)!.activated,
-          style: Theme.of(context).textTheme.bodySmall),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(25),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
     );
   }
 }

@@ -32,10 +32,12 @@ Future<void> writeStaticGeo() async {
   final geoFile = await rootBundle.load('assets/geo/simplified_geosite.dat');
   final geoIP = await rootBundle.load('assets/geo/simplified_geoip.dat');
   // write to file
-  File(await getSimplifiedGeositePath())
-      .writeAsBytesSync(geoFile.buffer.asUint8List());
-  File(await getSimplifiedGeoIPPath())
-      .writeAsBytesSync(geoIP.buffer.asUint8List());
+  File(
+    await getSimplifiedGeositePath(),
+  ).writeAsBytesSync(geoFile.buffer.asUint8List());
+  File(
+    await getSimplifiedGeoIPPath(),
+  ).writeAsBytesSync(geoIP.buffer.asUint8List());
 }
 
 class GeoDataHelper {
@@ -47,14 +49,15 @@ class GeoDataHelper {
   final String geoSiteUrl;
   final String geoIpUrl;
 
-  GeoDataHelper(
-      {required this.downloader,
-      required this.pref,
-      required this.xApiClient,
-      required this.databaseHelper,
-      required this.resouceDirPath,
-      required this.geoSiteUrl,
-      required this.geoIpUrl});
+  GeoDataHelper({
+    required this.downloader,
+    required this.pref,
+    required this.xApiClient,
+    required this.databaseHelper,
+    required this.resouceDirPath,
+    required this.geoSiteUrl,
+    required this.geoIpUrl,
+  });
 
   Completer<void>? _completer;
   Timer? _updateTimer;
@@ -68,12 +71,9 @@ class GeoDataHelper {
 
     logger.d('downloadGeo');
     try {
-      final dir = await resourceDir();
       final tasks = [
-        downloader.downloadProxyFirst(
-            geoSiteUrl, join(dir.path, 'geosite.dat')),
-        downloader.downloadProxyFirst(
-            geoIpUrl, join(dir.path, 'geoip.dat')),
+        downloader.downloadProxyFirst(geoSiteUrl, await getGeositePath()),
+        downloader.downloadProxyFirst(geoIpUrl, await getGeoIPPath()),
       ];
       await Future.wait(tasks);
       await xApiClient.processGeoFiles();
@@ -207,6 +207,7 @@ class GeoDataHelper {
     });
 
     logger.d(
-        'Geo file auto-update scheduled: interval=$updateIntervalDays days, next update at ${nextUpdate.toIso8601String()} (in ${delay.inHours}h ${delay.inMinutes % 60}m)');
+      'Geo file auto-update scheduled: interval=$updateIntervalDays days, next update at ${nextUpdate.toIso8601String()} (in ${delay.inHours}h ${delay.inMinutes % 60}m)',
+    );
   }
 }
